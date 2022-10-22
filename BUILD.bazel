@@ -251,3 +251,178 @@ define_db845c(
         "sound/soc/qcom/snd-soc-sm8250.ko",
     ],
 )
+<<<<<<< HEAD   (d2101e7384ec08fe13cc9faf5eccaa6a84048ac9 UPSTREAM: Bluetooth: RFCOMM: serialize security confirmation)
+||||||| BASE   (ede1fd38eeafa71983e0f578bed60f12e0b87ca1 ANDROID: kleaf: Initial list of ddk_headers (0: skeleton))
+
+kernel_build(
+    name = "fips140",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    build_config = "build.config.gki.aarch64.fips140",
+    module_outs = ["crypto/fips140.ko"],
+)
+
+copy_to_dist_dir(
+    name = "fips140_dist",
+    data = [
+        ":fips140",
+    ],
+    dist_dir = "out/fips140/dist",
+    flat = True,
+)
+
+# DDK Headers
+# All headers. This is the public target for DDK modules to use.
+ddk_headers(
+    name = "all_headers",
+    hdrs = [":all_headers_allowlist"] + select({
+        "//build/kernel/kleaf:allow_ddk_unsafe_headers_set": [":all_headers_unsafe"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# DDK headers allowlist. This is the list of all headers and include
+# directories that are safe to use in DDK modules.
+ddk_headers(
+    name = "all_headers_allowlist",
+    hdrs = [],
+    # The list of include directories where source files can #include headers
+    # from. In other words, these are the `-I` option to the C compiler.
+    includes = [],
+    visibility = ["//visibility:private"],
+)
+
+# List of DDK headers allowlist that are glob()-ed to avoid changes of BUILD
+# file when the list of files changes. All headers in these directories
+# are safe to use.
+filegroup(
+    name = "all_headers_allowlist_globs",
+    srcs = [],
+    visibility = ["//visibility:private"],
+)
+
+# DDK headers unsafe list. This is the list of all headers and include
+# directories that may be used during migration from kernel_module's, but
+# should be avoided in general.
+# Use with caution; items may:
+# - be removed without notice
+# - be moved into all_headers
+ddk_headers(
+    name = "all_headers_unsafe",
+    hdrs = [],
+    # The list of include directories where source files can #include headers
+    # from. In other words, these are the `-I` option to the C compiler.
+    includes = [],
+    visibility = ["//visibility:private"],
+)
+=======
+
+kernel_build(
+    name = "fips140",
+    outs = [],
+    base_kernel = ":kernel_aarch64",
+    build_config = "build.config.gki.aarch64.fips140",
+    module_outs = ["crypto/fips140.ko"],
+)
+
+copy_to_dist_dir(
+    name = "fips140_dist",
+    data = [
+        ":fips140",
+    ],
+    dist_dir = "out/fips140/dist",
+    flat = True,
+)
+
+# DDK Headers
+# All headers. This is the public target for DDK modules to use.
+ddk_headers(
+    name = "all_headers",
+    hdrs = [":all_headers_allowlist"] + select({
+        "//build/kernel/kleaf:allow_ddk_unsafe_headers_set": [":all_headers_unsafe"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# DDK headers allowlist. This is the list of all headers and include
+# directories that are safe to use in DDK modules.
+ddk_headers(
+    name = "all_headers_allowlist",
+    hdrs = [":all_headers_allowlist_globs"],
+    # The list of include directories where source files can #include headers
+    # from. In other words, these are the `-I` option to the C compiler.
+    includes = [
+        "arch/arm64/include",
+        "arch/arm64/include/uapi",
+        "include",
+        "include/uapi",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+# List of DDK headers allowlist that are glob()-ed to avoid changes of BUILD
+# file when the list of files changes. All headers in these directories
+# are safe to use.
+filegroup(
+    name = "all_headers_allowlist_globs",
+    srcs = glob([
+        "arch/arm64/include/**/*.h",
+        "include/**/*.h",
+    ]),
+    visibility = ["//visibility:private"],
+)
+
+# DDK headers unsafe list. This is the list of all headers and include
+# directories that may be used during migration from kernel_module's, but
+# should be avoided in general.
+# Use with caution; items may:
+# - be removed without notice
+# - be moved into all_headers
+ddk_headers(
+    name = "all_headers_unsafe",
+    hdrs = [
+        "drivers/devfreq/governor.h",
+        "drivers/dma-buf/heaps/deferred-free-helper.h",
+        "drivers/dma-buf/heaps/page_pool.h",
+        "drivers/dma/dmaengine.h",
+        "drivers/pci/controller/dwc/pcie-designware.h",
+        "drivers/pinctrl/core.h",
+        "drivers/pinctrl/samsung/pinctrl-samsung.h",
+        "drivers/staging/android/debug_kinfo.h",
+        "drivers/thermal/thermal_core.h",
+        "drivers/thermal/thermal_netlink.h",
+        "drivers/usb/core/phy.h",
+        "drivers/usb/dwc3/core.h",
+        "drivers/usb/dwc3/debug.h",
+        "drivers/usb/dwc3/gadget.h",
+        "drivers/usb/dwc3/io.h",
+        "drivers/usb/dwc3/trace.h",
+        "drivers/usb/gadget/configfs.h",
+        "drivers/usb/gadget/function/u_serial.h",
+        "drivers/usb/host/pci-quirks.h",
+        "drivers/usb/host/xhci.h",
+        "drivers/usb/host/xhci-ext-caps.h",
+        "drivers/usb/host/xhci-mvebu.h",
+        "drivers/usb/host/xhci-plat.h",
+        "drivers/usb/host/xhci-rcar.h",
+        "drivers/usb/typec/tcpm/tcpci.h",
+    ],
+    # The list of include directories where source files can #include headers
+    # from. In other words, these are the `-I` option to the C compiler.
+    includes = [
+        "drivers/devfreq",
+        "drivers/dma",
+        "drivers/dma-buf",
+        "drivers/pci/controller/dwc",
+        "drivers/pinctrl",
+        "drivers/scsi/ufs",
+        "drivers/thermal",
+        "drivers/usb",
+        "drivers/usb/gadget/function",
+        "drivers/usb/typec",
+    ],
+    visibility = ["//visibility:private"],
+)
+>>>>>>> CHANGE (14e14cc4e9407783a559b22dffd4bd2062714dd5 ANDROID: kleaf: Initial list of ddk_headers (1: Pixel))
