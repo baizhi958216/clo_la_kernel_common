@@ -8,6 +8,9 @@
 #include <linux/iomap.h>
 #include <linux/task_io_accounting_ops.h>
 #include "internal.h"
+#ifndef __GENKSYMS__
+#include <trace/hooks/mm.h>
+#endif
 #include "trace.h"
 
 #include "../internal.h"
@@ -435,6 +438,8 @@ static int iomap_dio_bio_iter(struct iomap_iter *iter, struct iomap_dio *dio)
 			goto out;
 		}
 
+		trace_android_vh_io_statistics(inode->i_mapping, pos >> inode->i_blkbits,
+					nr_pages, !(dio->flags & IOMAP_DIO_WRITE), true);
 		bio = iomap_dio_alloc_bio(iter, dio, nr_pages, bio_opf);
 		fscrypt_set_bio_crypt_ctx(bio, inode, pos >> inode->i_blkbits,
 					  GFP_KERNEL);
