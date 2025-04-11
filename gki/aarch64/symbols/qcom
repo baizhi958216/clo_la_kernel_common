@@ -4154,3 +4154,4 @@
   zs_map_object
   zs_pool_stats
   zs_unmap_object
+  cpu_idle_poll_ctrl
