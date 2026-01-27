@@ -16,6 +16,24 @@
       "message": "Please help to submit, thanks!",
       "revId": "d386871d2046eab7b327e3b3f44f4c44d834983b",
       "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a345836a_ea855b00",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-01-27T17:10:55Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "6b11a455_9e572ebc",
+      "revId": "d386871d2046eab7b327e3b3f44f4c44d834983b",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
     }
   ]
 }
