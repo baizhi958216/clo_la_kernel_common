@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c5941e7d_e88cfed8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 8
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-01-28T02:51:26Z",
+      "side": 1,
+      "message": "Even with the two STG changes removed, there is a merge conflict (with the symbol list). Please rebase to resolve that conflict.",
+      "revId": "2d5c06c07cb53b091525928e23c82f600d4c4197",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    }
+  ]
+}
