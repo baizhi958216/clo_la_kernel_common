@@ -297059,7 +297059,7 @@ elf_symbol {
   name: "__blockdev_direct_IO"
   is_defined: true
   symbol_type: FUNCTION
-  crc: 0x834837d9
+  crc: 0x71098134
   type_id: 0x16b316f6
   full_name: "__blockdev_direct_IO"
 }
