@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "6275a5c3_6d89063a",
+        "filename": "fs/direct-io.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 40,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-02-09T21:21:05Z",
+      "side": 1,
+      "message": "remove. This does nothing for 6.18",
+      "revId": "6f4f7a7e12a211a3d1611a026c9750ddbf1c2896",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "12528554_865eb3b1",
+        "filename": "fs/iomap/direct-io.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 11,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-02-09T21:21:05Z",
+      "side": 1,
+      "message": "remove. This does nothing in 6.18",
+      "revId": "6f4f7a7e12a211a3d1611a026c9750ddbf1c2896",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e3e65bbc_20391621",
+        "filename": "mm/readahead.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 284,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-02-09T21:21:05Z",
+      "side": 1,
+      "message": "This is changing the default behavior. If nothing is attached to the hook, the behavior must be completely unchanged.",
+      "revId": "6f4f7a7e12a211a3d1611a026c9750ddbf1c2896",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    }
+  ]
+}
