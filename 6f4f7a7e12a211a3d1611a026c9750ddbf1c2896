@@ -122,6 +122,24 @@
       "parentUuid": "8073e0ca_cc3a2fcb",
       "revId": "6f4f7a7e12a211a3d1611a026c9750ddbf1c2896",
       "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "766e7949_7afa5c63",
+        "filename": "mm/readahead.c",
+        "patchSetId": 11
+      },
+      "lineNbr": 284,
+      "author": {
+        "id": 1069543
+      },
+      "writtenOn": "2026-02-10T19:31:37Z",
+      "side": 1,
+      "message": "I don\u0027t understand what you mean. If no handler is attached to vh_io_statistics, then there must be no change in behavior. In this case if there is no handler, it still adds an extra call to filemap_alloc_folio(). Even if you think it is benign, this is not allowed. There must be no call to filemap_alloc_folio() if no handler.",
+      "parentUuid": "0392aded_4d2e392a",
+      "revId": "6f4f7a7e12a211a3d1611a026c9750ddbf1c2896",
+      "serverId": "85c56323-6fa9-3386-8a01-6480fb634889"
     }
   ]
 }
