@@ -380,6 +380,9 @@ DECLARE_HOOK(android_vh_check_new_page,
 DECLARE_HOOK(android_vh_split_large_folio_bypass,
 	TP_PROTO(bool *bypass),
 	TP_ARGS(bypass));
+DECLARE_HOOK(android_vh_mark_folio_accessed,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
 DECLARE_HOOK(android_vh_page_should_be_protected,
 	TP_PROTO(struct folio *folio, unsigned long nr_scanned,
 	s8 priority, u64 *ext, int *should_protect),
@@ -575,6 +578,9 @@ DECLARE_HOOK(android_vh_gcma_cc_allow_nonworkingset,
 DECLARE_HOOK(android_vh_gcma_cc_store_page_bypass,
 	TP_PROTO(bool *bypass),
 	TP_ARGS(bypass));
+DECLARE_HOOK(android_vh_adjust_nr_reclaimed,
+	TP_PROTO(struct folio *folio, unsigned int *nr_reclaimed),
+	TP_ARGS(folio, nr_reclaimed));
 DECLARE_HOOK(android_vh_swap_bio_charge,
 	TP_PROTO(struct bio *bio),
 	TP_ARGS(bio));
@@ -629,6 +635,45 @@ DECLARE_HOOK(android_vh_customize_pmd_gfp_bypass,
 DECLARE_HOOK(android_vh_thp_vma_allowable_orders,
 	TP_PROTO(struct vm_area_struct *vma, unsigned long *orders),
 	TP_ARGS(vma, orders));
+DECLARE_HOOK(android_vh_ksize,
+	TP_PROTO(struct folio *folio, size_t *up_size),
+	TP_ARGS(folio, up_size));
+DECLARE_HOOK(android_vh_kmalloc_large_node_bypass,
+	TP_PROTO(size_t size, gfp_t flags, int node, void **ptr, bool *bypass),
+	TP_ARGS(size, flags, node, ptr, bypass));
+DECLARE_HOOK(android_vh_kfree_bypass,
+	TP_PROTO(struct folio *folio, const void *object, bool *bypass),
+	TP_ARGS(folio, object, bypass));
+DECLARE_HOOK(android_vh_check_heap_object_bypass,
+	TP_PROTO(struct folio *folio, bool *bypass),
+	TP_ARGS(folio, bypass));
+DECLARE_HOOK(android_vh_oom_reaper_delay_bypass,
+	TP_PROTO(struct task_struct *tsk, bool *bypass),
+	TP_ARGS(tsk, bypass));
+DECLARE_HOOK(android_vh_thaw_killed_process,
+	TP_PROTO(bool *thaw),
+	TP_ARGS(thaw));
+DECLARE_HOOK(android_vh_folio_add_lru,
+        TP_PROTO(struct folio *folio),
+        TP_ARGS(folio));
+DECLARE_HOOK(android_vh_folio_add_lru_folio_activate,
+	TP_PROTO(struct folio *folio, bool *bypass),
+	TP_ARGS(folio, bypass));
+DECLARE_HOOK(android_vh_filemap_fault_pre_folio_locked,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_filemap_folio_mapped,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_folio_remove_rmap_ptes,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_exit_oom_victim,
+	TP_PROTO(struct task_struct *task),
+	TP_ARGS(task));
+DECLARE_HOOK(android_vh_oom_killer_disable,
+	TP_PROTO(int oom_victims),
+	TP_ARGS(oom_victims));
 #endif /* _TRACE_HOOK_MM_H */
 
 /* This part must be outside protection */
