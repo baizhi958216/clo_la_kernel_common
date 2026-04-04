@@ -186,6 +186,7 @@ filegroup(
         "gki/aarch64/symbols/amlogic",
         "gki/aarch64/symbols/asr",
         "gki/aarch64/symbols/bcmstb",
+        "gki/aarch64/symbols/cix",
         "gki/aarch64/symbols/db845c",
         "gki/aarch64/symbols/desktop",
         "gki/aarch64/symbols/exynos",
@@ -206,6 +207,7 @@ filegroup(
         "gki/aarch64/symbols/rockchip",
         "gki/aarch64/symbols/rtkstb",
         "gki/aarch64/symbols/rtktv",
+        "gki/aarch64/symbols/syna",
         "gki/aarch64/symbols/tcl",
         "gki/aarch64/symbols/telechips",
         "gki/aarch64/symbols/transsion",
@@ -216,6 +218,7 @@ filegroup(
         "gki/aarch64/symbols/virtual_device",
         "gki/aarch64/symbols/vivo",
         "gki/aarch64/symbols/xiaomi",
+        "gki/aarch64/symbols/zte",
     ],
     visibility = ["//visibility:public"],
 )

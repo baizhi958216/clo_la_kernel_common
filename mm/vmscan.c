@@ -1729,6 +1729,12 @@ static __always_inline void update_lru_sizes(struct lruvec *lruvec,
  */
 static bool skip_cma(struct folio *folio, struct scan_control *sc)
 {
+	bool bypass = false;
+
+	trace_android_vh_skip_cma(sc, &bypass);
+	if (bypass)
+		return false;
+
 	return !current_is_kswapd() &&
 			gfp_migratetype(sc->gfp_mask) != MIGRATE_MOVABLE &&
 			get_pageblock_migratetype(&folio->page) == MIGRATE_CMA;
@@ -2422,6 +2428,7 @@ static void prepare_scan_control(pg_data_t *pgdat, struct scan_control *sc)
 {
 	unsigned long file;
 	struct lruvec *target_lruvec;
+	bool bypass = false;
 
 	if (lru_gen_enabled())
 		return;
@@ -2433,7 +2440,9 @@ static void prepare_scan_control(pg_data_t *pgdat, struct scan_control *sc)
 	 * most accurate stats here. We may switch to regular stats flushing
 	 * in the future once it is cheap enough.
 	 */
-	mem_cgroup_flush_stats_ratelimited(sc->target_mem_cgroup);
+	trace_android_vh_mem_cgroup_flush_stats_bypass(sc->target_mem_cgroup, &bypass);
+	if (!bypass)
+		mem_cgroup_flush_stats_ratelimited(sc->target_mem_cgroup);
 
 	/*
 	 * Determine the scan balance between anon and file LRUs.
