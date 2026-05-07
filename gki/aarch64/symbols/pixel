@@ -1,5 +1,6 @@
 [abi_symbol_list]
   activate_task
+  active_load_balance_cpu_stop
   add_cpu
   add_timer
   add_timer_on
@@ -61,6 +62,7 @@
   bio_end_io_acct_remapped
   bio_init
   bio_start_io_acct
+  bitmap_alloc
   __bitmap_andnot
   __bitmap_clear
   __bitmap_equal
@@ -72,6 +74,7 @@
   bitmap_parselist
   bitmap_parse_user
   bitmap_print_to_pagebuf
+  __bitmap_replace
   __bitmap_set
   bitmap_to_arr32
   __bitmap_weight
@@ -88,6 +91,7 @@
   blk_put_queue
   blk_rq_map_user_io
   blk_rq_unmap_user
+  blk_status_to_errno
   blocking_notifier_call_chain
   blocking_notifier_chain_register
   blocking_notifier_chain_unregister
@@ -148,6 +152,7 @@
   clk_get_rate
   clk_hw_get_name
   clk_hw_get_parent
+  clk_hw_get_rate
   __clk_is_enabled
   clk_notifier_register
   clk_notifier_unregister
@@ -165,6 +170,7 @@
   clocks_calc_mult_shift
   __clocksource_register_scale
   clocksource_unregister
+  close_fd
   __cma_alloc
   cma_alloc
   cma_for_each_area
@@ -176,6 +182,7 @@
   completion_done
   component_add
   component_bind_all
+  component_compare_of
   component_del
   component_master_add_with_match
   component_master_del
@@ -289,6 +296,9 @@
   crypto_skcipher_encrypt
   crypto_skcipher_setkey
   __crypto_xor
+  css_task_iter_end
+  css_task_iter_next
+  css_task_iter_start
   csum_ipv6_magic
   csum_partial
   csum_tcpudp_nofold
@@ -304,6 +314,7 @@
   debugfs_create_devm_seqfile
   debugfs_create_dir
   debugfs_create_file
+  debugfs_create_file_size
   debugfs_create_file_unsafe
   debugfs_create_regset32
   debugfs_create_size_t
@@ -332,6 +343,7 @@
   dev_alloc_name
   __dev_change_net_namespace
   dev_close
+  dev_coredumpm_timeout
   _dev_crit
   dev_driver_string
   _dev_emerg
@@ -349,6 +361,9 @@
   devfreq_recommended_opp
   devfreq_register_opp_notifier
   devfreq_remove_device
+  devfreq_remove_governor
+  devfreq_resume_device
+  devfreq_suspend_device
   devfreq_unregister_opp_notifier
   devfreq_update_interval
   __dev_fwnode
@@ -366,6 +381,7 @@
   device_del
   device_destroy
   device_find_child
+  device_find_child_by_name
   device_for_each_child
   device_get_child_node_count
   device_get_dma_attr
@@ -378,6 +394,7 @@
   device_match_fwnode
   device_match_name
   device_match_of_node
+  device_node_to_regmap
   device_property_match_string
   device_property_present
   device_property_read_string
@@ -386,6 +403,7 @@
   device_property_read_u8_array
   device_register
   device_remove_file
+  device_remove_file_self
   device_remove_groups
   device_rename
   device_set_node
@@ -398,6 +416,15 @@
   _dev_info
   dev_iommu_priv_set
   dev_kfree_skb_any_reason
+  devlink_alloc_ns
+  devlink_flash_update_status_notify
+  devlink_free
+  devlink_health_reporter_state_update
+  devlink_priv
+  devlink_region_create
+  devlink_region_destroy
+  devlink_register
+  devlink_unregister
   __devm_add_action
   devm_backlight_device_register
   devm_backlight_device_unregister
@@ -409,6 +436,7 @@
   devm_clk_get
   devm_clk_get_enabled
   devm_clk_get_optional
+  devm_clk_get_optional_enabled
   devm_clk_hw_register
   devm_clk_put
   devm_devfreq_add_device
@@ -481,10 +509,13 @@
   __devm_pwmchip_add
   devm_pwmchip_alloc
   devm_pwm_get
+  devm_pwrseq_device_register
+  devm_pwrseq_get
   devm_register_reboot_notifier
   devm_register_sys_off_handler
   devm_regmap_add_irq_chip
   devm_regmap_field_alloc
+  devm_regmap_field_bulk_alloc
   __devm_regmap_init
   __devm_regmap_init_i2c
   __devm_regmap_init_mmio_clk
@@ -492,6 +523,7 @@
   __devm_regmap_init_spmi_ext
   devm_regulator_bulk_get
   devm_regulator_bulk_get_const
+  devm_regulator_bulk_get_enable
   devm_regulator_get
   devm_regulator_get_exclusive
   devm_regulator_get_optional
@@ -513,12 +545,15 @@
   devm_usb_get_phy_by_phandle
   devm_watchdog_register_device
   _dev_notice
+  dev_open
   dev_pm_clear_wake_irq
+  dev_pm_domain_attach
   dev_pm_domain_attach_by_id
   dev_pm_domain_attach_by_name
   dev_pm_domain_detach
   dev_pm_genpd_add_notifier
   dev_pm_genpd_remove_notifier
+  dev_pm_genpd_synced_poweroff
   dev_pm_opp_add_dynamic
   dev_pm_opp_clear_config
   dev_pm_opp_disable
@@ -553,9 +588,12 @@
   devres_add
   __devres_alloc_node
   devres_free
+  dev_set_mtu
   dev_set_name
+  dev_set_threaded
   dev_vprintk_emit
   _dev_warn
+  disable_delayed_work_sync
   disable_irq
   disable_irq_nosync
   disable_percpu_irq
@@ -593,6 +631,7 @@
   dma_fence_context_alloc
   dma_fence_default_wait
   dma_fence_enable_sw_signaling
+  dma_fence_free
   dma_fence_get_status
   dma_fence_init
   dma_fence_release
@@ -625,6 +664,7 @@
   dma_mmap_attrs
   dmam_pool_create
   dma_pool_alloc
+  dma_pool_create
   dma_pool_destroy
   dma_pool_free
   dma_release_channel
@@ -646,12 +686,14 @@
   do_SAK
   do_send_sig_info
   do_trace_netlink_extack
+  double_rq_lock
   do_wait_intr_irq
   down
   downgrade_write
   down_interruptible
   down_read
   down_read_trylock
+  down_timeout
   down_trylock
   down_write
   d_path
@@ -660,6 +702,7 @@
   driver_find_device
   driver_for_each_device
   driver_register
+  driver_set_override
   driver_unregister
   drm_add_modes_noedid
   drm_atomic_add_affected_connectors
@@ -681,12 +724,15 @@
   drm_atomic_get_plane_state
   drm_atomic_get_private_obj_state
   drm_atomic_helper_async_check
+  drm_atomic_helper_async_commit
   drm_atomic_helper_bridge_destroy_state
   __drm_atomic_helper_bridge_duplicate_state
   drm_atomic_helper_bridge_duplicate_state
+  drm_atomic_helper_bridge_propagate_bus_fmt
   __drm_atomic_helper_bridge_reset
   drm_atomic_helper_bridge_reset
   drm_atomic_helper_calc_timestamping_constants
+  drm_atomic_helper_check
   drm_atomic_helper_check_modeset
   drm_atomic_helper_check_planes
   drm_atomic_helper_check_plane_state
@@ -694,6 +740,7 @@
   drm_atomic_helper_commit_cleanup_done
   drm_atomic_helper_commit_duplicated_state
   drm_atomic_helper_commit_hw_done
+  drm_atomic_helper_commit_modeset_disables
   drm_atomic_helper_commit_modeset_enables
   drm_atomic_helper_commit_planes
   drm_atomic_helper_commit_tail
@@ -705,6 +752,7 @@
   drm_atomic_helper_connector_reset
   __drm_atomic_helper_crtc_destroy_state
   __drm_atomic_helper_crtc_duplicate_state
+  drm_atomic_helper_crtc_duplicate_state
   __drm_atomic_helper_crtc_reset
   drm_atomic_helper_dirtyfb
   drm_atomic_helper_disable_plane
@@ -722,10 +770,13 @@
   drm_atomic_helper_setup_commit
   drm_atomic_helper_shutdown
   drm_atomic_helper_swap_state
+  drm_atomic_helper_unprepare_planes
   drm_atomic_helper_update_legacy_modeset_state
   drm_atomic_helper_update_plane
   drm_atomic_helper_wait_for_dependencies
+  drm_atomic_helper_wait_for_fences
   drm_atomic_helper_wait_for_flip_done
+  drm_atomic_helper_wait_for_vblanks
   drm_atomic_nonblocking_commit
   drm_atomic_normalize_zpos
   drm_atomic_private_obj_fini
@@ -858,6 +909,7 @@
   drm_mode_duplicate
   drm_mode_equal
   drm_mode_equal_no_clocks
+  drm_mode_is_420_only
   drm_mode_object_find
   drm_mode_object_get
   drm_mode_object_put
@@ -872,6 +924,7 @@
   drm_modeset_unlock
   drm_mode_sort
   drm_mode_vrefresh
+  __drmm_universal_plane_alloc
   drm_object_attach_property
   drm_object_property_set_value
   drm_of_find_panel_or_bridge
@@ -898,6 +951,7 @@
   drm_prime_pages_to_sg
   drm_prime_sg_to_page_array
   drm_printf
+  __drm_printfn_coredump
   __drm_printfn_dbg
   __drm_printfn_info
   __drm_printfn_seq_file
@@ -913,6 +967,7 @@
   drm_property_create_signed_range
   drm_property_lookup_blob
   drm_property_replace_blob
+  __drm_puts_coredump
   __drm_puts_seq_file
   drm_read
   drm_rect_clip_scaled
@@ -923,6 +978,7 @@
   drm_send_event
   drm_send_event_locked
   drm_simple_encoder_init
+  drm_state_dump
   drm_sysfs_connector_property_event
   drm_universal_plane_init
   drm_vblank_init
@@ -932,6 +988,7 @@
   drop_reasons_register_subsys
   drop_reasons_unregister_subsys
   dump_backtrace
+  dump_page
   dump_stack
   dump_tasks
   dw_handle_msi_irq
@@ -950,6 +1007,7 @@
   em_cpu_get
   em_dev_register_perf_domain
   emergency_restart
+  em_pd_get
   enable_irq
   enable_percpu_irq
   ether_setup
@@ -989,12 +1047,14 @@
   finish_wait
   firmware_kobj
   firmware_request_nowarn
+  fixed_size_llseek
   flush_dcache_page
   flush_delayed_work
   flush_work
   __flush_workqueue
   __folio_lock
   __folio_put
+  folio_unlock
   folio_wait_writeback
   for_each_thermal_trip
   __fortify_panic
@@ -1050,6 +1110,7 @@
   gen_pool_has_addr
   gen_pool_set_algo
   gen_pool_size
+  get_cmdline
   get_cpu_device
   get_cpu_idle_time
   get_cpu_idle_time_us
@@ -1092,6 +1153,7 @@
   gpiod_direction_input
   gpiod_direction_output
   gpiod_direction_output_raw
+  gpio_device_get_desc
   gpiod_get_raw_value
   gpiod_get_raw_value_cansleep
   gpiod_get_value
@@ -1154,6 +1216,7 @@
   i2c_find_adapter_by_fwnode
   i2c_find_device_by_fwnode
   i2c_for_each_dev
+  i2c_freq_mode_string
   i2c_generic_scl_recovery
   i2c_get_adapter
   i2c_get_match_data
@@ -1227,6 +1290,7 @@
   ieee802154_xmit_complete
   ieee802154_xmit_error
   ieee802154_xmit_hw_error
+  igrab
   iio_buffer_enabled
   iio_device_unregister
   import_iovec
@@ -1250,6 +1314,8 @@
   init_uts_ns
   init_wait_entry
   __init_waitqueue_head
+  inode_owner_or_capable
+  inode_permission
   input_alloc_absinfo
   input_allocate_device
   input_close_device
@@ -1291,12 +1357,14 @@
   iommu_domain_alloc
   iommu_domain_free
   iommu_fwspec_add_ids
+  iommu_fwspec_free
   iommu_get_domain_for_dev
   iommu_group_alloc
   iommu_group_for_each_dev
   iommu_group_get
   iommu_group_get_iommudata
   iommu_group_put
+  iommu_group_ref_get
   iommu_group_set_iommudata
   iommu_group_set_name
   iommu_iova_to_phys
@@ -1311,10 +1379,15 @@
   iova_domain_init_rcaches
   iov_iter_revert
   ip_send_check
+  iput
   __ipv6_addr_type
+  ipv6_skip_exthdr
   __irq_alloc_descs
   __irq_apply_affinity_hint
   irq_check_status_bit
+  irq_chip_ack_parent
+  irq_chip_mask_parent
+  irq_chip_unmask_parent
   irq_create_mapping_affinity
   irq_create_of_mapping
   irq_dispose_mapping
@@ -1323,9 +1396,11 @@
   irq_domain_remove
   irq_domain_set_info
   irq_domain_simple_ops
+  irq_domain_update_bus_token
   irq_domain_xlate_onecell
   irq_domain_xlate_twocell
   irq_force_affinity
+  irq_get_irqchip_state
   irq_get_irq_data
   irq_get_percpu_devid_partition
   irq_modify_status
@@ -1336,6 +1411,7 @@
   irq_set_chained_handler_and_data
   irq_set_chip_and_handler_name
   irq_set_chip_data
+  irq_set_irqchip_state
   irq_set_irq_type
   irq_set_irq_wake
   irq_to_desc
@@ -1362,6 +1438,7 @@
   kernfs_notify
   kernfs_path_from_node
   kernfs_put
+  kern_path
   key_put
   keyring_alloc
   __kfifo_alloc
@@ -1372,7 +1449,9 @@
   __kfifo_out
   __kfifo_out_linear
   __kfifo_out_peek
+  __kfifo_to_user
   kfree
+  kfree_const
   kfree_sensitive
   kfree_skb_list_reason
   kill_fasync
@@ -1384,6 +1463,7 @@
   klist_iter_exit
   klist_iter_init
   klist_next
+  klist_node_attached
   klist_remove
   __kmalloc_cache_node_noprof
   __kmalloc_cache_noprof
@@ -1400,6 +1480,8 @@
   kobject_add
   kobject_create_and_add
   kobject_del
+  kobject_get
+  kobject_get_path
   kobject_init
   kobject_init_and_add
   kobject_put
@@ -1470,13 +1552,29 @@
   kunit_binary_assert_format
   kunit_binary_str_assert_format
   __kunit_do_failed_assertion
+  kunit_hooks
   kunit_kmalloc_array
   kunit_ptr_not_err_assert_format
+  kunit_running
   kvfree
   kvfree_call_rcu
   __kvmalloc_node_noprof
+  kvm_iommu_alloc_domain
+  kvm_iommu_attach_dev
+  kvm_iommu_attach_dev_nested
+  kvm_iommu_detach_dev
+  kvm_iommu_detach_dev_nested
+  kvm_iommu_free_domain
   kvm_iommu_init_hyp
+  kvm_iommu_iotlb_inv_nested_domain
+  kvm_iommu_iova_to_phys
+  kvm_iommu_map_pages
+  kvm_iommu_map_sg
+  kvm_iommu_nested_cfg_sync
   kvm_iommu_register_driver
+  kvm_iommu_share_hyp_sg
+  kvm_iommu_unmap_pages
+  kvm_iommu_unshare_hyp_sg
   kvrealloc_noprof
   led_classdev_register_ext
   led_classdev_unregister
@@ -1484,6 +1582,8 @@
   __list_add_valid_or_report
   __list_del_entry_valid_or_report
   list_sort
+  llist_add_batch
+  llist_reverse_order
   __local_bh_enable_ip
   lock_sock_nested
   log_abnormal_wakeup_reason
@@ -1495,6 +1595,7 @@
   loops_per_jiffy
   lru_cache_disable
   lru_disable_count
+  __lruvec_stat_mod_folio
   LZ4_compress_fast
   LZ4_compress_fast_continue
   LZ4_compress_HC
@@ -1510,6 +1611,7 @@
   lzorle1x_1_compress
   mac_pton
   mas_find
+  mas_prev
   max_load_balance_interval
   mbox_chan_received_data
   mbox_chan_txdone
@@ -1603,14 +1705,19 @@
   nbcon_device_release
   nbcon_device_try_acquire
   __ndelay
+  __netdev_alloc_frag_align
   __netdev_alloc_skb
+  netdev_core_stats_inc
   netdev_err
   netdev_info
+  netdev_rx_handler_register
+  netdev_rx_handler_unregister
   netdev_set_default_ethtool_ops
   netdev_state_change
   netdev_update_features
   netif_carrier_off
   netif_carrier_on
+  netif_device_attach
   netif_napi_add_weight
   __netif_napi_del
   netif_receive_skb
@@ -1644,8 +1751,10 @@
   __nlmsg_put
   nonseekable_open
   noop_llseek
+  nop_mnt_idmap
   nr_cpu_ids
   nr_irqs
+  nr_swap_pages
   ns_capable
   ns_capable_noaudit
   nsecs_to_jiffies
@@ -1704,6 +1813,7 @@
   of_get_named_gpio
   of_get_next_available_child
   of_get_next_child
+  of_get_next_cpu_node
   of_get_next_parent
   of_get_parent
   of_get_property
@@ -1732,6 +1842,7 @@
   __of_parse_phandle_with_args
   of_phandle_iterator_init
   of_phandle_iterator_next
+  of_phy_simple_xlate
   of_platform_depopulate
   of_platform_populate
   of_property_count_elems_of_size
@@ -1753,6 +1864,7 @@
   of_reserved_mem_device_release
   of_reserved_mem_lookup
   of_root
+  of_translate_dma_region
   of_usb_host_tpl_support
   __oom_reap_task_mm
   oops_in_progress
@@ -1761,6 +1873,11 @@
   page_frag_free
   page_pinner_inited
   __page_pinner_put_page
+  page_pool_alloc_frag
+  page_pool_alloc_pages
+  page_pool_create
+  page_pool_destroy
+  page_pool_put_unrefed_netmem
   panic
   panic_notifier_list
   param_array_ops
@@ -1776,9 +1893,12 @@
   param_ops_uint
   param_ops_ullong
   param_ops_ulong
+  param_ops_ushort
   param_set_copystring
   param_set_int
   param_set_uint_minmax
+  path_put
+  pci_aer_clear_nonfatal_status
   pci_alloc_irq_vectors
   pci_alloc_irq_vectors_affinity
   pci_assign_resource
@@ -1786,14 +1906,21 @@
   pci_bus_read_config_dword
   pci_bus_type
   pci_clear_master
+  pci_dev_get
   pci_device_group
+  pci_device_is_present
+  pci_dev_lock
   pci_dev_put
+  pci_dev_unlock
   pci_disable_ats
   pci_disable_device
   pci_disable_msi
+  pcie_capability_clear_and_set_word_unlocked
   pcie_capability_read_word
+  pcie_capability_write_word
   pcie_get_speed_cap
   pcie_get_width_cap
+  pcie_link_speed
   pci_enable_ats
   pci_enable_device
   pci_enable_link_state
@@ -1801,6 +1928,7 @@
   pci_find_bus
   pci_find_capability
   pci_find_ext_capability
+  pci_find_host_bridge
   pci_free_irq
   pci_free_irq_vectors
   pci_generic_config_read
@@ -1814,6 +1942,11 @@
   pci_load_and_free_saved_state
   pci_load_saved_state
   pci_lock_rescan_remove
+  pcim_enable_device
+  pcim_iomap_regions
+  pcim_iomap_table
+  pcim_iounmap_regions
+  pci_msi_create_irq_domain
   pci_msi_mask_irq
   pci_msi_unmask_irq
   pci_prepare_ats
@@ -1835,6 +1968,7 @@
   pci_unlock_rescan_remove
   pci_unregister_driver
   pci_wake_from_d3
+  pci_walk_bus
   pci_write_config_dword
   pci_write_config_word
   pcpu_alloc_noprof
@@ -1842,6 +1976,7 @@
   percpu_counter_add_batch
   percpu_counter_batch
   __per_cpu_offset
+  perf_allow_kernel
   perf_aux_output_begin
   perf_aux_output_end
   perf_aux_output_flag
@@ -1883,6 +2018,7 @@
   pinctrl_gpio_direction_output
   pinctrl_lookup_state
   pinctrl_pm_select_default_state
+  pinctrl_pm_select_idle_state
   pinctrl_pm_select_sleep_state
   pinctrl_remove_gpio_range
   pinctrl_select_state
@@ -1895,6 +2031,7 @@
   pkvm_iommu_resume
   pkvm_iommu_suspend
   __pkvm_load_el2_module
+  __pkvm_topup_hyp_alloc
   platform_bus_type
   platform_device_add
   platform_device_add_data
@@ -1920,6 +2057,8 @@
   platform_irq_count
   __platform_register_drivers
   platform_unregister_drivers
+  plist_add
+  plist_del
   pm_genpd_add_subdomain
   pm_genpd_init
   pm_genpd_remove
@@ -1942,11 +2081,16 @@
   __pm_runtime_set_status
   __pm_runtime_suspend
   __pm_runtime_use_autosuspend
+  pm_schedule_suspend
   __pm_stay_awake
   pm_stay_awake
   pm_system_wakeup
   pm_wakeup_dev_event
   pm_wakeup_ws_event
+  powercap_register_control_type
+  powercap_register_zone
+  powercap_unregister_control_type
+  powercap_unregister_zone
   power_supply_changed
   power_supply_get_by_name
   power_supply_get_by_phandle_array
@@ -2000,8 +2144,13 @@
   put_unused_fd
   put_vaddr_frames
   pwm_apply_might_sleep
+  pwrseq_device_get_drvdata
+  pwrseq_power_off
+  pwrseq_power_on
   queue_delayed_work_on
   queue_work_on
+  radix_tree_delete
+  radix_tree_gang_lookup
   radix_tree_insert
   radix_tree_iter_delete
   radix_tree_lookup
@@ -2088,11 +2237,13 @@
   regmap_bulk_read
   regmap_bulk_write
   regmap_check_range_table
+  regmap_exit
   regmap_field_read
   regmap_field_update_bits_base
   regmap_get_device
   regmap_get_reg_stride
   __regmap_init
+  __regmap_init_i2c
   regmap_irq_get_virq
   regmap_multi_reg_write
   regmap_multi_reg_write_bypassed
@@ -2116,7 +2267,9 @@
   regulator_is_enabled
   regulator_is_enabled_regmap
   regulator_list_voltage_linear
+  regulator_list_voltage_linear_range
   regulator_map_voltage_linear
+  regulator_map_voltage_linear_range
   regulator_notifier_call_chain
   regulator_put
   regulator_set_active_discharge_regmap
@@ -2189,6 +2342,7 @@
   runqueues
   sbitmap_weight
   sched_clock
+  sched_energy_present
   sched_feat_keys
   sched_prio_to_weight
   sched_prio_to_wmult
@@ -2254,6 +2408,7 @@
   __sg_page_iter_next
   __sg_page_iter_start
   shmem_file_setup
+  __show_mem
   shrinker_alloc
   shrinker_free
   shrinker_register
@@ -2304,10 +2459,12 @@
   skb_set_owner_w
   skb_store_bits
   skb_trim
+  skb_unlink
   sk_free
   skip_spaces
   sk_skb_reason_drop
   smp_call_function
+  smp_call_function_any
   smp_call_function_single
   smp_call_on_cpu
   snd_compr_stop_error
@@ -2508,6 +2665,7 @@
   sysfs_notify
   sysfs_remove_file_from_group
   sysfs_remove_file_ns
+  sysfs_remove_files
   sysfs_remove_group
   sysfs_remove_groups
   sysfs_remove_link
@@ -2571,7 +2729,9 @@
   time64_to_tm
   timer_delete
   timer_delete_sync
+  timer_shutdown_sync
   topology_update_hw_pressure
+  topup_hyp_memcache
   _totalram_pages
   touch_softlockup_watchdog
   trace_array_destroy
@@ -2585,6 +2745,7 @@
   trace_event_reg
   trace_handle_return
   __traceiter_android_rvh_after_dequeue_task
+  __traceiter_android_rvh_after_enqueue_task
   __traceiter_android_rvh_attach_entity_load_avg
   __traceiter_android_rvh_build_perf_domains
   __traceiter_android_rvh_can_migrate_task
@@ -2598,6 +2759,7 @@
   __traceiter_android_rvh_enqueue_task
   __traceiter_android_rvh_enqueue_task_fair
   __traceiter_android_rvh_find_lowest_rq
+  __traceiter_android_rvh_gup_longterm_locked
   __traceiter_android_rvh_hw_protection_shutdown
   __traceiter_android_rvh_iommu_alloc_insert_iova
   __traceiter_android_rvh_iommu_iovad_init_alloc_algo
@@ -2627,6 +2789,7 @@
   __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_set_user_nice_locked
   __traceiter_android_rvh_swap_read_folio_bdev_sync
+  __traceiter_android_rvh_task_fits_cpu
   __traceiter_android_rvh_try_to_wake_up_success
   __traceiter_android_rvh_uclamp_eff_get
   __traceiter_android_rvh_ufs_complete_init
@@ -2644,24 +2807,31 @@
   __traceiter_android_vh_binder_proc_transaction_finish
   __traceiter_android_vh_binder_restore_priority
   __traceiter_android_vh_binder_set_priority
+  __traceiter_android_vh_binder_wait_for_work
   __traceiter_android_vh_calculate_totalreserve_pages
   __traceiter_android_vh_check_new_page
   __traceiter_android_vh_chk_task
   __traceiter_android_vh_cpu_idle_enter
   __traceiter_android_vh_cpu_idle_exit
+  __traceiter_android_vh_do_async_mmap_readahead
   __traceiter_android_vh_dump_throttled_rt_tasks
   __traceiter_android_vh_dup_task_struct
+  __traceiter_android_vh_dwc3_core_soft_reset
+  __traceiter_android_vh_dwc3_xhci_soft_reset
   __traceiter_android_vh_early_resume_begin
   __traceiter_android_vh_enable_thermal_genl_check
+  __traceiter_android_vh_ep_create_wakeup_source
   __traceiter_android_vh_exit_check
   __traceiter_android_vh_filemap_get_folio
   __traceiter_android_vh_free_one_page_flag_check
   __traceiter_android_vh_free_pages_prepare_init
-  __traceiter_android_vh_ep_create_wakeup_source
   __traceiter_android_vh_ipi_stop
   __traceiter_android_vh_mm_compaction_begin
   __traceiter_android_vh_mm_compaction_end
   __traceiter_android_vh_mm_kcompactd_cpu_online
+  __traceiter_android_vh_page_cache_ra_order_bypass
+  __traceiter_android_vh_page_cache_readahead_start
+  __traceiter_android_vh_pci_pm_verify_state
   __traceiter_android_vh_platform_pci_choose_state
   __traceiter_android_vh_platform_pci_get_power_state
   __traceiter_android_vh_platform_pci_power_manageable
@@ -2674,14 +2844,18 @@
   __traceiter_android_vh_rmqueue
   __traceiter_android_vh_scheduler_tick
   __traceiter_android_vh_setscheduler_uclamp
+  __traceiter_android_vh_show_smap
   __traceiter_android_vh_si_meminfo_adjust
+  __traceiter_android_vh_smaps_pte_entry
   __traceiter_android_vh_swap_writepage
   __traceiter_android_vh_sysrq_crash
-  __traceiter_android_vh_tune_swappiness
   __traceiter_android_vh_timerfd_create
+  __traceiter_android_vh_tune_swappiness
+  __traceiter_android_vh_typec_tcpm_log
   __traceiter_android_vh_uclamp_validate
   __traceiter_android_vh_ufs_check_int_errors
   __traceiter_android_vh_ufs_compl_command
+  __traceiter_android_vh_ufs_eh_timed_out
   __traceiter_android_vh_ufs_fill_prdt
   __traceiter_android_vh_ufs_prepare_command
   __traceiter_android_vh_ufs_send_command
@@ -2689,7 +2863,9 @@
   __traceiter_android_vh_ufs_send_uic_command
   __traceiter_android_vh_ufs_update_sdev
   __traceiter_android_vh_ufs_update_sysfs
+  __traceiter_android_vh_update_thermal_trip_flag
   __traceiter_android_vh_use_amu_fie
+  __traceiter_android_vh_vmscan_kswapd_done
   __traceiter_clock_set_rate
   __traceiter_cma_alloc_finish
   __traceiter_cma_alloc_start
@@ -2704,6 +2880,7 @@
   __traceiter_mmap_lock_start_locking
   __traceiter_mm_vmscan_direct_reclaim_begin
   __traceiter_mm_vmscan_direct_reclaim_end
+  __traceiter_mm_vmscan_kswapd_wake
   __traceiter_pelt_cfs_tp
   __traceiter_pelt_dl_tp
   __traceiter_pelt_irq_tp
@@ -2723,6 +2900,7 @@
   __traceiter_workqueue_execute_start
   trace_output_call
   __tracepoint_android_rvh_after_dequeue_task
+  __tracepoint_android_rvh_after_enqueue_task
   __tracepoint_android_rvh_attach_entity_load_avg
   __tracepoint_android_rvh_build_perf_domains
   __tracepoint_android_rvh_can_migrate_task
@@ -2736,6 +2914,7 @@
   __tracepoint_android_rvh_enqueue_task
   __tracepoint_android_rvh_enqueue_task_fair
   __tracepoint_android_rvh_find_lowest_rq
+  __tracepoint_android_rvh_gup_longterm_locked
   __tracepoint_android_rvh_hw_protection_shutdown
   __tracepoint_android_rvh_iommu_alloc_insert_iova
   __tracepoint_android_rvh_iommu_iovad_init_alloc_algo
@@ -2765,6 +2944,7 @@
   __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_set_user_nice_locked
   __tracepoint_android_rvh_swap_read_folio_bdev_sync
+  __tracepoint_android_rvh_task_fits_cpu
   __tracepoint_android_rvh_try_to_wake_up_success
   __tracepoint_android_rvh_uclamp_eff_get
   __tracepoint_android_rvh_ufs_complete_init
@@ -2782,24 +2962,31 @@
   __tracepoint_android_vh_binder_proc_transaction_finish
   __tracepoint_android_vh_binder_restore_priority
   __tracepoint_android_vh_binder_set_priority
+  __tracepoint_android_vh_binder_wait_for_work
   __tracepoint_android_vh_calculate_totalreserve_pages
   __tracepoint_android_vh_check_new_page
   __tracepoint_android_vh_chk_task
   __tracepoint_android_vh_cpu_idle_enter
   __tracepoint_android_vh_cpu_idle_exit
+  __tracepoint_android_vh_do_async_mmap_readahead
   __tracepoint_android_vh_dump_throttled_rt_tasks
   __tracepoint_android_vh_dup_task_struct
+  __tracepoint_android_vh_dwc3_core_soft_reset
+  __tracepoint_android_vh_dwc3_xhci_soft_reset
   __tracepoint_android_vh_early_resume_begin
   __tracepoint_android_vh_enable_thermal_genl_check
+  __tracepoint_android_vh_ep_create_wakeup_source
   __tracepoint_android_vh_exit_check
   __tracepoint_android_vh_filemap_get_folio
   __tracepoint_android_vh_free_one_page_flag_check
   __tracepoint_android_vh_free_pages_prepare_init
-  __tracepoint_android_vh_ep_create_wakeup_source
   __tracepoint_android_vh_ipi_stop
   __tracepoint_android_vh_mm_compaction_begin
   __tracepoint_android_vh_mm_compaction_end
   __tracepoint_android_vh_mm_kcompactd_cpu_online
+  __tracepoint_android_vh_page_cache_ra_order_bypass
+  __tracepoint_android_vh_page_cache_readahead_start
+  __tracepoint_android_vh_pci_pm_verify_state
   __tracepoint_android_vh_platform_pci_choose_state
   __tracepoint_android_vh_platform_pci_get_power_state
   __tracepoint_android_vh_platform_pci_power_manageable
@@ -2812,14 +2999,18 @@
   __tracepoint_android_vh_rmqueue
   __tracepoint_android_vh_scheduler_tick
   __tracepoint_android_vh_setscheduler_uclamp
+  __tracepoint_android_vh_show_smap
   __tracepoint_android_vh_si_meminfo_adjust
+  __tracepoint_android_vh_smaps_pte_entry
   __tracepoint_android_vh_swap_writepage
   __tracepoint_android_vh_sysrq_crash
-  __tracepoint_android_vh_tune_swappiness
   __tracepoint_android_vh_timerfd_create
+  __tracepoint_android_vh_tune_swappiness
+  __tracepoint_android_vh_typec_tcpm_log
   __tracepoint_android_vh_uclamp_validate
   __tracepoint_android_vh_ufs_check_int_errors
   __tracepoint_android_vh_ufs_compl_command
+  __tracepoint_android_vh_ufs_eh_timed_out
   __tracepoint_android_vh_ufs_fill_prdt
   __tracepoint_android_vh_ufs_prepare_command
   __tracepoint_android_vh_ufs_send_command
@@ -2827,7 +3018,9 @@
   __tracepoint_android_vh_ufs_send_uic_command
   __tracepoint_android_vh_ufs_update_sdev
   __tracepoint_android_vh_ufs_update_sysfs
+  __tracepoint_android_vh_update_thermal_trip_flag
   __tracepoint_android_vh_use_amu_fie
+  __tracepoint_android_vh_vmscan_kswapd_done
   __tracepoint_clock_set_rate
   __tracepoint_cma_alloc_finish
   __tracepoint_cma_alloc_start
@@ -2842,6 +3035,7 @@
   __tracepoint_mmap_lock_start_locking
   __tracepoint_mm_vmscan_direct_reclaim_begin
   __tracepoint_mm_vmscan_direct_reclaim_end
+  __tracepoint_mm_vmscan_kswapd_wake
   __tracepoint_pelt_cfs_tp
   __tracepoint_pelt_dl_tp
   __tracepoint_pelt_irq_tp
@@ -2870,6 +3064,7 @@
   trace_set_clr_event
   __trace_trigger_soft_disabled
   try_module_get
+  try_wait_for_completion
   tty_flip_buffer_push
   tty_get_char_size
   __tty_insert_flip_string_flags
@@ -2878,6 +3073,7 @@
   tty_termios_baud_rate
   tty_termios_encode_baud_rate
   typec_mux_get_drvdata
+  typec_mux_put
   typec_mux_register
   typec_mux_set
   typec_mux_unregister
@@ -2967,8 +3163,10 @@
   usb_add_function
   usb_add_hcd
   usb_assign_descriptors
+  usb_composite_setup_continue
   usb_copy_descriptors
   __usb_create_hcd
+  usb_debug_root
   usb_disabled
   usb_enable_autosuspend
   usb_ep_alloc_request
@@ -2981,12 +3179,16 @@
   usb_free_all_descriptors
   usb_function_register
   usb_function_unregister
+  usb_gadget_connect
+  usb_gadget_disconnect
   usb_gadget_set_state
   usb_gstrings_attach
   usb_hcd_is_primary_hcd
   usb_hcd_platform_shutdown
   usb_hub_find_child
   usb_interface_id
+  usb_offload_get
+  usb_offload_put
   usb_otg_state_string
   usb_put_function_instance
   usb_put_hcd
@@ -3092,6 +3294,7 @@
   vmalloc_to_page
   vmalloc_user_noprof
   vmap
+  vmap_pfn
   __vma_start_write
   vmf_insert_pfn
   vmf_insert_pfn_prot
@@ -3138,16 +3341,25 @@
   wireless_send_event
   woken_wake_function
   work_busy
+  wwan_create_port
+  wwan_port_get_drvdata
+  wwan_port_rx
+  wwan_register_ops
+  wwan_remove_port
+  wwan_unregister_ops
   ww_mutex_lock
   ww_mutex_unlock
   x509_load_certificate_list
   __xa_alloc
+  __xa_clear_mark
+  xa_destroy
   __xa_erase
   xa_erase
   xa_find
   xa_find_after
   __xa_insert
   xa_load
+  xa_set_mark
   xas_find
   xas_pause
   __xa_store
@@ -3170,6 +3382,7 @@
   xhci_sideband_remove_endpoint
   xhci_sideband_remove_interrupter
   xhci_sideband_unregister
+  xhci_stop_endpoint_sync
   xhci_suspend
   zlib_deflate
   zlib_deflateEnd

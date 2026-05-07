@@ -1311,6 +1311,7 @@
   iio_push_to_buffers
   iio_read_channel_attribute
   iio_read_channel_processed
+  iio_read_channel_processed_scale
   iio_read_channel_raw
   iio_trigger_notify_done
   import_iovec
@@ -3310,6 +3311,9 @@
   tty_vhangup
   tty_wakeup
   tty_write_room
+  tun_get_socket
+  tun_get_tx_ring
+  tun_ptr_free
   typec_get_drvdata
   typec_mux_get_drvdata
   typec_mux_put

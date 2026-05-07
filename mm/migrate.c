@@ -612,6 +612,7 @@ int folio_migrate_mapping(struct address_space *mapping,
 {
 	int expected_count = folio_expected_ref_count(folio) + extra_count + 1;
 
+	trace_android_vh_folio_expected_ref_count(mapping, folio, &expected_count);
 	if (folio_ref_count(folio) != expected_count)
 		return -EAGAIN;
 
@@ -629,6 +630,7 @@ int migrate_huge_page_move_mapping(struct address_space *mapping,
 	XA_STATE(xas, &mapping->i_pages, folio_index(src));
 	int rc, expected_count = folio_expected_ref_count(src) + 1;
 
+	trace_android_vh_folio_expected_ref_count(mapping, src, &expected_count);
 	if (folio_ref_count(src) != expected_count)
 		return -EAGAIN;
 
@@ -762,6 +764,7 @@ static int __migrate_folio(struct address_space *mapping, struct folio *dst,
 {
 	int rc, expected_count = folio_expected_ref_count(src) + 1;
 
+	trace_android_vh_folio_expected_ref_count(mapping, src, &expected_count);
 	/* Check whether src does not have extra refs before we do more work */
 	if (folio_ref_count(src) != expected_count)
 		return -EAGAIN;
@@ -849,6 +852,7 @@ static int __buffer_migrate_folio(struct address_space *mapping,
 
 	/* Check whether page does not have extra refs before we do more work */
 	expected_count = folio_expected_ref_count(src) + 1;
+	trace_android_vh_folio_expected_ref_count(mapping, src, &expected_count);
 	if (folio_ref_count(src) != expected_count)
 		return -EAGAIN;
 
@@ -1457,6 +1461,7 @@ static int unmap_and_move_huge_page(new_folio_t get_new_folio,
 	int page_was_mapped = 0;
 	struct anon_vma *anon_vma = NULL;
 	struct address_space *mapping = NULL;
+	enum ttu_flags ttu = 0;
 
 	if (folio_ref_count(src) == 1) {
 		/* page was freed from under us. So we are done. */
@@ -1497,8 +1502,6 @@ static int unmap_and_move_huge_page(new_folio_t get_new_folio,
 		goto put_anon;
 
 	if (folio_mapped(src)) {
-		enum ttu_flags ttu = 0;
-
 		if (!folio_test_anon(src)) {
 			/*
 			 * In shared mappings, try_to_unmap could potentially
@@ -1515,9 +1518,6 @@ static int unmap_and_move_huge_page(new_folio_t get_new_folio,
 
 		try_to_migrate(src, ttu);
 		page_was_mapped = 1;
-
-		if (ttu & TTU_RMAP_LOCKED)
-			i_mmap_unlock_write(mapping);
 	}
 
 	if (!folio_mapped(src))
@@ -1525,7 +1525,11 @@ static int unmap_and_move_huge_page(new_folio_t get_new_folio,
 
 	if (page_was_mapped)
 		remove_migration_ptes(src,
-			rc == MIGRATEPAGE_SUCCESS ? dst : src, 0);
+			rc == MIGRATEPAGE_SUCCESS ? dst : src,
+				ttu ? RMP_LOCKED : 0);
+
+	if (ttu & TTU_RMAP_LOCKED)
+		i_mmap_unlock_write(mapping);
 
 unlock_put_anon:
 	folio_unlock(dst);
