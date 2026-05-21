@@ -533,6 +533,12 @@ DECLARE_HOOK(android_vh_mm_direct_reclaim_enter,
 DECLARE_HOOK(android_vh_mm_direct_reclaim_exit,
 	TP_PROTO(unsigned long did_some_progress, int retry_times),
 	TP_ARGS(did_some_progress, retry_times));
+DECLARE_HOOK(android_vh_mm_direct_reclaim_start,
+       TP_PROTO(u64 *stime),
+       TP_ARGS(stime));
+DECLARE_HOOK(android_vh_mm_direct_reclaim_end,
+       TP_PROTO(unsigned int order, u64 stime),
+       TP_ARGS(order, stime));
 struct oom_control;
 DECLARE_HOOK(android_vh_mm_may_oom_exit,
 	TP_PROTO(struct oom_control *oc, unsigned long did_some_progress),
@@ -776,6 +782,12 @@ DECLARE_HOOK(android_vh_swap_writepage_end,
 	TP_PROTO(struct page *page, struct writeback_control *wbc,
 		unsigned long swap_writepage_start),
 	TP_ARGS(page, wbc, swap_writepage_start));
+DECLARE_HOOK(android_vh_cma_alloc_lat_start,
+	TP_PROTO(unsigned long long *stime),
+	TP_ARGS(stime));
+DECLARE_HOOK(android_vh_cma_alloc_lat_end,
+	TP_PROTO(unsigned long long stime,unsigned long count),
+	TP_ARGS(stime,count));
 DECLARE_RESTRICTED_HOOK(android_rvh_read_swap_cache_async_timeout,
 	TP_PROTO(size_t *count, bool *skip),
 	TP_ARGS(count, skip), 2);
