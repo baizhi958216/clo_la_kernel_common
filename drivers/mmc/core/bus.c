@@ -223,7 +223,7 @@ static const struct bus_type mmc_bus_type = {
 	.probe		= mmc_bus_probe,
 	.remove		= mmc_bus_remove,
 	.shutdown	= mmc_bus_shutdown,
-//	.pm		= &mmc_bus_pm_ops,
+	.pm		= &mmc_bus_pm_ops,
 };
 
 int mmc_register_bus(void)
