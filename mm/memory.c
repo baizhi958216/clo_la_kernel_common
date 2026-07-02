@@ -4242,6 +4242,7 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	unsigned long page_idx;
 	unsigned long address;
 	pte_t *ptep;
+	bool bypass = false;
 
 	if (!pte_unmap_same(vmf))
 		goto out;
@@ -4327,11 +4328,15 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 					 * Relax a bit to prevent rapid
 					 * repeated page faults.
 					 */
+					trace_android_rvh_do_swap_page_relax(entry, &bypass);
+					if (bypass)
+						goto out_page;
 					add_wait_queue(&swapcache_wq, &wait);
 					schedule_timeout_uninterruptible(1);
 					remove_wait_queue(&swapcache_wq, &wait);
 					goto out_page;
 				}
+				trace_android_rvh_do_swap_page_start(entry);
 				need_clear_cache = true;
 
 				mem_cgroup_swapin_uncharge_swap(entry, nr_pages);
@@ -4642,6 +4647,7 @@ out:
 		swapcache_clear(si, entry, nr_pages);
 		if (waitqueue_active(&swapcache_wq))
 			wake_up(&swapcache_wq);
+		trace_android_vh_do_swap_page_done(entry);
 	}
 	if (si)
 		put_swap_device(si);
@@ -4661,6 +4667,7 @@ out_release:
 		swapcache_clear(si, entry, nr_pages);
 		if (waitqueue_active(&swapcache_wq))
 			wake_up(&swapcache_wq);
+		trace_android_vh_do_swap_page_done(entry);
 	}
 	if (si)
 		put_swap_device(si);
@@ -5289,8 +5296,16 @@ static vm_fault_t do_fault_around(struct vm_fault *vmf)
 	pgoff_t pte_off = pte_index(vmf->address);
 	/* The page offset of vmf->address within the VMA. */
 	pgoff_t vma_off = vmf->pgoff - vmf->vma->vm_pgoff;
+	pgoff_t nr_data_pages = vma_data_pages(vmf->vma);
 	pgoff_t from_pte, to_pte;
 	vm_fault_t ret;
+
+	/*
+	 * Fault occurred in the padding region. There are no file-cache pages
+	 * to map in this region, so skip fault-around.
+	 */
+	if (vma_off >= nr_data_pages)
+		return 0;
 
 	/* The PTE offset of the start address, clamped to the VMA. */
 	from_pte = max(ALIGN_DOWN(pte_off, nr_pages),
@@ -5298,7 +5313,7 @@ static vm_fault_t do_fault_around(struct vm_fault *vmf)
 
 	/* The PTE offset of the end address, clamped to the VMA and PTE. */
 	to_pte = min3(from_pte + nr_pages, (pgoff_t)PTRS_PER_PTE,
-		      pte_off + vma_data_pages(vmf->vma) - vma_off) - 1;
+		      pte_off + nr_data_pages - vma_off) - 1;
 
 	if (pmd_none(*vmf->pmd)) {
 		vmf->prealloc_pte = pte_alloc_one(vmf->vma->vm_mm);
