@@ -473,6 +473,9 @@ DECLARE_HOOK(android_vh_scx_task_switch_finish,
 DECLARE_HOOK(android_vh_scx_task_can_run_on,
 	TP_PROTO(bool *disallow, struct task_struct *p, struct rq *rq),
 	TP_ARGS(disallow, p, rq));
+DECLARE_HOOK(android_rvh_check_class_changing,
+	TP_PROTO(struct rq *rq, struct task_struct *p, const struct sched_class *prev_class),
+	TP_ARGS(rq, p, prev_class));
 
 struct scx_exit_info;
 DECLARE_HOOK(android_vh_scx_exit_on_abnormal,
@@ -486,6 +489,10 @@ DECLARE_HOOK(android_vh_switching_to_scx,
 DECLARE_RESTRICTED_HOOK(android_rvh_update_rq_clock_pelt,
 	TP_PROTO(struct rq *rq, s64 delta, int *ret),
 	TP_ARGS(rq, delta, ret), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_update_load_sum,
+	TP_PROTO(int *force_update),
+	TP_ARGS(force_update), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_update_load_avg_blocked_se,
 	TP_PROTO(u64 now, struct sched_entity *se, int *ret),
