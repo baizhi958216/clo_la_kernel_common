@@ -225,6 +225,9 @@ static void handle_pvm_entry_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 	case ARM_SMCCC_VENDOR_HYP_KVM_MEM_RELINQUISH_FUNC_ID:
 		vcpu_set_reg(&hyp_vcpu->vcpu, 0, SMCCC_RET_SUCCESS);
 		break;
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
+		pkvm_device_request_power_pvm_entry(hyp_vcpu);
+		break;
 	default:
 		handle_pvm_entry_psci(hyp_vcpu);
 		break;
@@ -394,6 +397,7 @@ static void handle_pvm_exit_hvc64(struct pkvm_hyp_vcpu *hyp_vcpu)
 
 	case PSCI_1_1_FN_SYSTEM_RESET2:
 	case PSCI_1_1_FN64_SYSTEM_RESET2:
+	case ARM_SMCCC_VENDOR_HYP_KVM_DEV_REQ_PWR_FUNC_ID:
 		n = 3;
 		break;
 

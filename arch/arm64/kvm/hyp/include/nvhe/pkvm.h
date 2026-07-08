@@ -55,12 +55,6 @@ struct kvm_ffa_buffers {
 	u64 vm_creating_bitmap;
 };
 
-enum protected_vm_state {
-	PROTECTED_VM_ALIVE = 0,
-	PROTECTED_VM_DYING,
-	PROTECTED_VM_DEAD,
-};
-
 /*
  * Holds the relevant data for running a protected vm.
  */
@@ -94,11 +88,11 @@ struct pkvm_hyp_vm {
 	hyp_spinlock_t vcpus_lock;
 
 	/*
-	 * Bigger than one when the guest is being torn down. When in this state,
-	 * the guest's vCPUs can't be loaded anymore, but its pages can be
+	 * True when the guest is being torn down. When in this state, the
+	 * guest's vCPUs can't be loaded anymore, but its pages can be
 	 * reclaimed by the host.
 	 */
-	enum protected_vm_state is_dying;
+	bool is_dying;
 
 	struct kvm_ffa_buffers ffa_buf;
 	struct list_head vm_list;
@@ -205,6 +199,8 @@ int pkvm_init_scmi_pd(struct kvm_power_domain *pd,
 
 bool pkvm_device_request_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
 bool pkvm_device_request_dma(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+bool pkvm_device_request_power(struct pkvm_hyp_vcpu *hyp_vcpu, u64 *exit_code);
+void pkvm_device_request_power_pvm_entry(struct pkvm_hyp_vcpu *hyp_vcpu);
 void pkvm_devices_teardown(struct pkvm_hyp_vm *vm);
 int pkvm_devices_get_context(u64 iommu_id, u32 endpoint_id, struct pkvm_hyp_vm *vm);
 void pkvm_devices_put_context(u64 iommu_id, u32 endpoint_id);
@@ -234,6 +230,8 @@ int pkvm_device_reclaim_mmio(u64 pfn, u64 nr_pages);
 int pkvm_host_map_guest_mmio(struct pkvm_hyp_vcpu *hyp_vcpu, u64 pfn, u64 gfn);
 int pkvm_device_register_reset(u64 phys, void *cookie,
 			       int (*cb)(void *cookie, bool host_to_guest));
+int pkvm_device_register_power_lock(u64 phys, void *cookie,
+				       int (*cb)(void *cookie, bool lock));
 u32 hyp_vcpu_to_ffa_handle(struct pkvm_hyp_vcpu *hyp_vcpu);
 u32 vm_handle_to_ffa_handle(pkvm_handle_t vm_handle);
 
