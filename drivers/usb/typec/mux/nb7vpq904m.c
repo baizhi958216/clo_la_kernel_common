@@ -104,9 +104,17 @@ static void nb7vpq904m_set_channel(struct nb7vpq904m *nb7, unsigned int channel,
 			   LOSS_MATCH_MASK, FIELD_PREP(LOSS_MATCH_MASK, loss_match));
 }
 
+static unsigned int nb7vpq904m_dp_2lane_op_mode(struct nb7vpq904m *nb7)
+{
+	bool reverse = (nb7->orientation == TYPEC_ORIENTATION_REVERSE);
+
+	return reverse ? GEN_DEV_SET_OP_MODE_DP_CC2 : GEN_DEV_SET_OP_MODE_DP_CC1;
+}
+
 static int nb7vpq904m_set(struct nb7vpq904m *nb7)
 {
 	bool reverse = (nb7->orientation == TYPEC_ORIENTATION_REVERSE);
+	unsigned int op_mode;
 
 	switch (nb7->mode) {
 	case TYPEC_STATE_SAFE:
@@ -206,16 +214,14 @@ static int nb7vpq904m_set(struct nb7vpq904m *nb7)
 
 	case TYPEC_DP_STATE_D:
 	case TYPEC_DP_STATE_F:
+		op_mode = nb7vpq904m_dp_2lane_op_mode(nb7);
 		regmap_write(nb7->regmap, GEN_DEV_SET_REG,
 			     GEN_DEV_SET_CHIP_EN |
 			     GEN_DEV_SET_CHNA_EN |
 			     GEN_DEV_SET_CHNB_EN |
 			     GEN_DEV_SET_CHNC_EN |
 			     GEN_DEV_SET_CHND_EN |
-			     FIELD_PREP(GEN_DEV_SET_OP_MODE_MASK,
-					reverse ^ nb7->swap_data_lanes ?
-						GEN_DEV_SET_OP_MODE_DP_CC2
-						: GEN_DEV_SET_OP_MODE_DP_CC1));
+			     FIELD_PREP(GEN_DEV_SET_OP_MODE_MASK, op_mode));
 
 		/*
 		 * Normal Orientation (CC1)
