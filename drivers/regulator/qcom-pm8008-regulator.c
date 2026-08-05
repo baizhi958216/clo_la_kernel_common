@@ -10,6 +10,7 @@
 #include <linux/device.h>
 #include <linux/math.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -27,7 +28,23 @@
 #define LDO_ENABLE_REG			0x46
 #define ENABLE_BIT			BIT(7)
 
+/*
+ * MISC registers reside in the primary I2C address space (0x08).
+ * LDO registers reside in the secondary I2C address space (0x09).
+ */
+#define MISC_BASE			0x900
+#define MISC_CHIP_ENABLE_REG		(MISC_BASE + 0x50)
+#define CHIP_ENABLE_BIT			BIT(0)
+
+struct pm8008_chip {
+	struct device		*dev;
+	struct regmap		*regmap_primary;
+	struct mutex		lock;
+	int			enable_count;
+};
+
 struct pm8008_regulator {
+	struct pm8008_chip	*chip;
 	struct regmap		*regmap;
 	struct regulator_desc	desc;
 	unsigned int		base;
@@ -99,12 +116,83 @@ static int pm8008_regulator_get_voltage_sel(struct regulator_dev *rdev)
 	return regulator_map_voltage_linear_range(rdev, uV, INT_MAX);
 }
 
+static int pm8008_chip_aggregate(struct pm8008_chip *chip)
+{
+	int rc = 0;
+	bool enable;
+
+	enable = (chip->enable_count > 0);
+
+	/*
+	 * MISC_CHIP_ENABLE_REG (0x950) resides in the primary I2C address space (0x08).
+	 * We must use regmap_primary here, not the secondary regmap used for LDOs.
+	 */
+	rc = regmap_update_bits(chip->regmap_primary, MISC_CHIP_ENABLE_REG,
+				CHIP_ENABLE_BIT, enable ? CHIP_ENABLE_BIT : 0);
+	if (rc < 0)
+		dev_err(chip->dev, "failed to %s chip rc=%d\n",
+			enable ? "enable" : "disable", rc);
+
+	return rc;
+}
+
+static int pm8008_regulator_enable(struct regulator_dev *rdev)
+{
+	struct pm8008_regulator *preg = rdev_get_drvdata(rdev);
+	struct pm8008_chip *chip = preg->chip;
+	int rc;
+
+	mutex_lock(&chip->lock);
+	chip->enable_count++;
+	if (chip->enable_count == 1) {
+		rc = pm8008_chip_aggregate(chip);
+		if (rc < 0) {
+			chip->enable_count--;
+			mutex_unlock(&chip->lock);
+			return rc;
+		}
+	}
+	mutex_unlock(&chip->lock);
+
+	rc = regulator_enable_regmap(rdev);
+	if (rc < 0) {
+		mutex_lock(&chip->lock);
+		chip->enable_count--;
+		if (chip->enable_count == 0)
+			pm8008_chip_aggregate(chip);
+		mutex_unlock(&chip->lock);
+	}
+
+	return rc;
+}
+
+static int pm8008_regulator_disable(struct regulator_dev *rdev)
+{
+	struct pm8008_regulator *preg = rdev_get_drvdata(rdev);
+	struct pm8008_chip *chip = preg->chip;
+	int rc;
+
+	rc = regulator_disable_regmap(rdev);
+	if (rc < 0)
+		return rc;
+
+	mutex_lock(&chip->lock);
+	if (chip->enable_count > 0) {
+		chip->enable_count--;
+		if (chip->enable_count == 0)
+			pm8008_chip_aggregate(chip);
+	}
+	mutex_unlock(&chip->lock);
+
+	return 0;
+}
+
 static const struct regulator_ops pm8008_regulator_ops = {
 	.list_voltage		= regulator_list_voltage_linear,
 	.set_voltage_sel	= pm8008_regulator_set_voltage_sel,
 	.get_voltage_sel	= pm8008_regulator_get_voltage_sel,
-	.enable			= regulator_enable_regmap,
-	.disable		= regulator_disable_regmap,
+	.enable			= pm8008_regulator_enable,
+	.disable		= pm8008_regulator_disable,
 	.is_enabled		= regulator_is_enabled_regmap,
 };
 
@@ -114,15 +202,30 @@ static int pm8008_regulator_probe(struct platform_device *pdev)
 	struct regulator_config config = {};
 	struct device *dev = &pdev->dev;
 	struct pm8008_regulator *preg;
+	struct pm8008_chip *chip;
 	struct regulator_desc *desc;
 	struct regulator_dev *rdev;
 	struct regmap *regmap;
+	struct regmap *regmap_primary;
 	unsigned int val;
 	int ret, i;
 
 	regmap = dev_get_regmap(dev->parent, "secondary");
 	if (!regmap)
 		return -EINVAL;
+
+	regmap_primary = dev_get_regmap(dev->parent, "primary");
+	if (!regmap_primary)
+		return -EINVAL;
+
+	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
+	if (!chip)
+		return -ENOMEM;
+
+	chip->dev = dev;
+	chip->regmap_primary = regmap_primary;
+	mutex_init(&chip->lock);
+	chip->enable_count = 0;
 
 	for (i = 0; i < ARRAY_SIZE(pm8008_reg_data); i++) {
 		data = &pm8008_reg_data[i];
@@ -131,6 +234,7 @@ static int pm8008_regulator_probe(struct platform_device *pdev)
 		if (!preg)
 			return -ENOMEM;
 
+		preg->chip = chip;
 		preg->regmap = regmap;
 		preg->base = data->base;
 
@@ -163,6 +267,11 @@ static int pm8008_regulator_probe(struct platform_device *pdev)
 		desc->enable_reg = preg->base + LDO_ENABLE_REG;
 		desc->enable_mask = ENABLE_BIT;
 
+		/* Update initial enable count based on true hardware state */
+		ret = regmap_read(regmap, desc->enable_reg, &val);
+		if (!ret && (val & desc->enable_mask))
+			chip->enable_count++;
+
 		config.dev = dev->parent;
 		config.driver_data = preg;
 		config.regmap = regmap;
@@ -175,6 +284,9 @@ static int pm8008_regulator_probe(struct platform_device *pdev)
 			return ret;
 		}
 	}
+
+	/* Initialize hardware global state based on active regulators */
+	pm8008_chip_aggregate(chip);
 
 	return 0;
 }
