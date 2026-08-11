@@ -69,7 +69,7 @@ static const struct of_device_id tegra_fuse_match[] = {
 #ifdef CONFIG_ARCH_TEGRA_234_SOC
 	{ .compatible = "nvidia,tegra234-efuse", .data = &tegra234_fuse_soc },
 #endif
-#ifdef CONFIG_ARCH_TEGRA_194_SOC
+#if defined(CONFIG_ARCH_TEGRA_194_SOC) || defined(CONFIG_ARCH_TEGRA_234_SOC)
 	{ .compatible = "nvidia,tegra194-efuse", .data = &tegra194_fuse_soc },
 #endif
 #ifdef CONFIG_ARCH_TEGRA_186_SOC
@@ -182,8 +182,6 @@ static int tegra_fuse_probe(struct platform_device *pdev)
 		}
 
 		fuse->soc->init(fuse);
-		tegra_fuse_print_sku_info(&tegra_sku_info);
-		tegra_soc_device_register();
 
 		err = tegra_fuse_add_lookups(fuse);
 		if (err)

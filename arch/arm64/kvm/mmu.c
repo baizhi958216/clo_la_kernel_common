@@ -1746,7 +1746,7 @@ __pkvm_pages_to_ppages(struct kvm *kvm, struct kvm_memory_slot *memslot, gfn_t g
 		ppage = kvm_pinned_pages_iter_first(&kvm->arch.pkvm.pinned_pages,
 						    ipa, ipa + PAGE_SIZE - 1);
 		if (ppage) {
-			unpin_user_pages(&page, 1);
+			unpin_user_page(page);
 			goto next;
 		}
 
@@ -1758,6 +1758,12 @@ __pkvm_pages_to_ppages(struct kvm *kvm, struct kvm_memory_slot *memslot, gfn_t g
 			unsigned long hva = gfn_to_hva_memslot_prot(memslot, gfn, NULL);
 
 			page_size = transparent_hugepage_adjust(kvm, memslot, hva, &pfn, &ipa);
+
+			/* Stage-1 mapping missing. Skip the page and retry the fault later */
+			if (page_size < 0) {
+				unpin_user_page(page);
+				goto next;
+			}
 		}
 
 		/* Pop a ppage from the pre-allocated list */
@@ -1772,7 +1778,7 @@ __pkvm_pages_to_ppages(struct kvm *kvm, struct kvm_memory_slot *memslot, gfn_t g
 
 next:
 		/* Number of pages to skip (covered by a THP) */
-		skip = ppage->order ? ALIGN(gfn + 1, 1 << ppage->order) - gfn - 1 : 0;
+		skip = (ppage && ppage->order) ? ALIGN(gfn + 1, 1 << ppage->order) - gfn - 1 : 0;
 		if (skip) {
 			long nr_pins = min_t(long, skip, nr_pages - p - 1);
 
@@ -2149,7 +2155,7 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	enum kvm_pgtable_prot prot = KVM_PGTABLE_PROT_R;
 	struct kvm_pgtable *pgt;
 	unsigned long hva = gfn_to_hva_memslot_prot(memslot, gfn, NULL);
-	enum kvm_pgtable_walk_flags flags = KVM_PGTABLE_WALK_HANDLE_FAULT | KVM_PGTABLE_WALK_SHARED;
+	enum kvm_pgtable_walk_flags flags = KVM_PGTABLE_WALK_SHARED;
 
 	if (fault_is_perm)
 		fault_granule = kvm_vcpu_trap_get_perm_fault_granule(vcpu);
@@ -2259,14 +2265,12 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	}
 
 	/*
-	 * Both the canonical IPA and fault IPA must be hugepage-aligned to
-	 * ensure we find the right PFN and lay down the mapping in the right
-	 * place.
+	 * Both the canonical IPA and fault IPA must be aligned to the
+	 * mapping size to ensure we find the right PFN and lay down the
+	 * mapping in the right place.
 	 */
-	if (vma_pagesize == PMD_SIZE || vma_pagesize == PUD_SIZE) {
-		fault_ipa &= ~(vma_pagesize - 1);
-		ipa &= ~(vma_pagesize - 1);
-	}
+	fault_ipa = ALIGN_DOWN(fault_ipa, vma_pagesize);
+	ipa = ALIGN_DOWN(ipa, vma_pagesize);
 
 	gfn = fault_ipa >> PAGE_SHIFT;
 	mte_allowed = kvm_vma_mte_allowed(vma);
@@ -2423,7 +2427,7 @@ out_unlock:
 /* Resolve the access fault by making the page young again. */
 static void handle_access_fault(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa)
 {
-	enum kvm_pgtable_walk_flags flags = KVM_PGTABLE_WALK_HANDLE_FAULT | KVM_PGTABLE_WALK_SHARED;
+	enum kvm_pgtable_walk_flags flags = KVM_PGTABLE_WALK_SHARED;
 	kvm_pte_t pte;
 	struct kvm_s2_mmu *mmu;
 
@@ -2692,8 +2696,6 @@ static struct kvm_pgtable_mm_ops kvm_hyp_mm_ops = {
 int __init kvm_mmu_init(void)
 {
 	int err;
-	u32 idmap_bits;
-	u32 kernel_bits;
 
 	hyp_idmap_start = __pa_symbol(__hyp_idmap_text_start);
 	hyp_idmap_start = ALIGN_DOWN(hyp_idmap_start, PAGE_SIZE);
@@ -2707,24 +2709,7 @@ int __init kvm_mmu_init(void)
 	 */
 	BUG_ON((hyp_idmap_start ^ (hyp_idmap_end - 1)) & PAGE_MASK);
 
-	/*
-	 * The ID map is always configured for 48 bits of translation, which
-	 * may be fewer than the number of VA bits used by the regular kernel
-	 * stage 1, when VA_BITS=52.
-	 *
-	 * At EL2, there is only one TTBR register, and we can't switch between
-	 * translation tables *and* update TCR_EL2.T0SZ at the same time. Bottom
-	 * line: we need to use the extended range with *both* our translation
-	 * tables.
-	 *
-	 * So use the maximum of the idmap VA bits and the regular kernel stage
-	 * 1 VA bits to assure that the hypervisor can both ID map its code page
-	 * and map any kernel memory.
-	 */
-	idmap_bits = IDMAP_VA_BITS;
-	kernel_bits = vabits_actual;
-	hyp_va_bits = max(idmap_bits, kernel_bits);
-
+	hyp_va_bits = kvm_hyp_va_bits();
 	kvm_debug("Using %u-bit virtual addresses at EL2\n", hyp_va_bits);
 	kvm_debug("IDMAP page: %lx\n", hyp_idmap_start);
 	kvm_debug("HYP VA range: %lx:%lx\n",

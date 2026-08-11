@@ -24,6 +24,11 @@ void *memset(void *dst, int c, size_t count)
 	return CALL_FROM_OPS(memset, dst, c, count);
 }
 
+void *memcpy(void *dst, const void *src, size_t count)
+{
+	return CALL_FROM_OPS(memcpy, dst, src, count);
+}
+
 #ifdef CONFIG_LIST_HARDENED
 bool __list_add_valid_or_report(struct list_head *new,
 				struct list_head *prev,
@@ -276,7 +281,7 @@ static int smmu_send_cmd(struct hyp_arm_smmu_v3_device *smmu,
 	return smmu_sync_cmd(smmu);
 }
 
-static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
+static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, __le64 *step, u32 sid)
 {
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_CFGI_STE,
@@ -284,10 +289,13 @@ static int smmu_sync_ste(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 		.cfgi.leaf = true,
 	};
 
+	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
+		kvm_flush_dcache_to_poc(step, STRTAB_STE_DWORDS << 3);
+
 	return smmu_send_cmd(smmu, &cmd);
 }
 
-static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u32 sid, u32 ssid)
+static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, __le64 *cd, u32 sid, u32 ssid)
 {
 	struct arm_smmu_cmdq_ent cmd = {
 		.opcode = CMDQ_OP_CFGI_CD,
@@ -295,6 +303,9 @@ static int smmu_sync_cd(struct hyp_arm_smmu_v3_device *smmu, u32 sid, u32 ssid)
 		.cfgi.ssid	= ssid,
 		.cfgi.leaf = true,
 	};
+
+	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
+		kvm_flush_dcache_to_poc(cd, CTXDESC_CD_DWORDS << 3);
 
 	return smmu_send_cmd(smmu, &cmd);
 }
@@ -306,7 +317,6 @@ static int smmu_alloc_l2_strtab(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 	dma_addr_t l2ptr_dma;
 	struct arm_smmu_strtab_l2 *l2table;
 	size_t l2_order = get_order(sizeof(struct arm_smmu_strtab_l2));
-	int flags = 0;
 	u32 l1_idx = arm_smmu_strtab_l1_idx(sid);
 
 	if (l1_idx >= cfg->l2.num_l1_ents)
@@ -316,19 +326,11 @@ static int smmu_alloc_l2_strtab(struct hyp_arm_smmu_v3_device *smmu, u32 sid)
 	if (l1_desc->l2ptr)
 		return 0;
 
-	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
-		flags |= IOMMU_PAGE_NOCACHE;
-
-	l2table = kvm_iommu_donate_pages(l2_order, flags);
+	l2table = kvm_iommu_donate_pages(l2_order, 0);
 	if (!l2table)
 		return -ENOMEM;
 
 	l2ptr_dma = hyp_virt_to_phys(l2table);
-
-	if (l2ptr_dma & (~STRTAB_L1_DESC_L2PTR_MASK | ~PAGE_MASK)) {
-		kvm_iommu_reclaim_pages(l2table, l2_order);
-		return -EINVAL;
-	}
 
 	/* Ensure the empty stream table is visible before the descriptor write */
 	wmb();
@@ -387,7 +389,6 @@ static __le64 *smmu_get_cd_ptr(__le64 *cdtab, u32 ssid)
 static u64 *smmu_alloc_cd(struct hyp_arm_smmu_v3_device *smmu, u32 pasid_bits)
 {
 	u64 *cd_table;
-	int flags = 0;
 	u32 requested_order = get_order((1 << pasid_bits) *
 					(CTXDESC_CD_DWORDS << 3));
 
@@ -398,10 +399,7 @@ static u64 *smmu_alloc_cd(struct hyp_arm_smmu_v3_device *smmu, u32 pasid_bits)
 	if (WARN_ON(requested_order > 4))
 		return NULL;
 
-	if (!(smmu->features & ARM_SMMU_FEAT_COHERENCY))
-		flags |= IOMMU_PAGE_NOCACHE;
-
-	cd_table = kvm_iommu_donate_pages(requested_order, flags);
+	cd_table = kvm_iommu_donate_pages(requested_order, 0);
 	if (!cd_table)
 		return NULL;
 	return (u64 *)hyp_virt_to_phys(cd_table);
@@ -704,8 +702,10 @@ static int smmu_alloc_domain(struct kvm_hyp_iommu_domain *domain, int type)
 		return -EINVAL;
 
 	smmu_domain = hyp_alloc(sizeof(*smmu_domain));
-	if (!smmu_domain)
+	if (!smmu_domain) {
+		kvm_iommu_request_hyp_alloc();
 		return -ENOMEM;
+	}
 
 	INIT_LIST_HEAD(&smmu_domain->iommu_list);
 	hyp_rwlock_init(&smmu_domain->list_lock);
@@ -1062,6 +1062,7 @@ static int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	__le64 *cd_entry;
 	struct io_pgtable_cfg *cfg;
 	struct hyp_arm_smmu_v3_domain *smmu_domain = domain->priv;
+	bool coherent = smmu->features & ARM_SMMU_FEAT_COHERENCY;
 
 	cfg = &smmu_domain->pgtable->cfg;
 	dst = smmu_get_ste_ptr(smmu, sid);
@@ -1096,9 +1097,12 @@ static int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	cd_entry[2] = 0;
 	cd_entry[3] = cpu_to_le64(cfg->arm_lpae_s1_cfg.mair);
 
-	/* STE is live. */
-	if (pasid)
-		smmu_sync_cd(smmu, sid, pasid);
+	/*
+	 * Sync the CD if the STE was live or for non-coherent SMMUs,
+	 * as we rely on the Sync function to do the CMOs over it.
+	 */
+	if (pasid || !coherent)
+		smmu_sync_cd(smmu, cd_entry, sid, pasid);
 	val =  FIELD_PREP(CTXDESC_CD_0_TCR_T0SZ, cfg->arm_lpae_s1_cfg.tcr.tsz) |
 	       FIELD_PREP(CTXDESC_CD_0_TCR_TG0, cfg->arm_lpae_s1_cfg.tcr.tg) |
 	       FIELD_PREP(CTXDESC_CD_0_TCR_IRGN0, cfg->arm_lpae_s1_cfg.tcr.irgn) |
@@ -1111,9 +1115,9 @@ static int smmu_domain_config_s1(struct hyp_arm_smmu_v3_device *smmu,
 	       FIELD_PREP(CTXDESC_CD_0_ASID, domain->domain_id) |
 	       CTXDESC_CD_0_V;
 	WRITE_ONCE(cd_entry[0], cpu_to_le64(val));
-	/* STE is live. */
-	if (pasid)
-		smmu_sync_cd(smmu, sid, pasid);
+
+	if (pasid || !coherent)
+		smmu_sync_cd(smmu, cd_entry, sid, pasid);
 	return 0;
 }
 
@@ -1303,6 +1307,7 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 		}
 		iommu_node = hyp_alloc(sizeof(struct domain_iommu_node));
 		if (!iommu_node) {
+			kvm_iommu_request_hyp_alloc();
 			ret = -ENOMEM;
 			goto out_unlock;
 		}
@@ -1346,12 +1351,12 @@ static int smmu_attach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	for (i = 1; i < STRTAB_STE_DWORDS; i++)
 		dst->data[i] = ste.data[i];
 
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst->data, sid);
 	if (ret)
 		goto out_unlock_ref;
 
 	WRITE_ONCE(dst->data[0], ste.data[0]);
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst->data, sid);
 	WARN_ON(ret);
 
 out_unlock_ref:
@@ -1445,11 +1450,11 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 				goto out_unlock;
 			}
 			cd[0] = 0;
-			smmu_sync_cd(smmu, sid, pasid);
+			smmu_sync_cd(smmu, cd, sid, pasid);
 			cd[1] = 0;
 			cd[2] = 0;
 			cd[3] = 0;
-			ret = smmu_sync_cd(smmu, sid, pasid);
+			ret = smmu_sync_cd(smmu, cd, sid, pasid);
 			smmu_put_ref_domain(smmu, smmu_domain);
 			goto out_unlock;
 		}
@@ -1463,20 +1468,21 @@ static int smmu_detach_dev(struct kvm_hyp_iommu *iommu, struct kvm_hyp_iommu_dom
 	}
 	/* For stage-2 and pasid = 0 */
 	dst->data[0] = 0;
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst->data, sid);
 	if (ret)
 		goto out_unlock;
 	for (i = 1; i < STRTAB_STE_DWORDS; i++)
 		dst->data[i] = 0;
 
-	ret = smmu_sync_ste(smmu, sid);
+	ret = smmu_sync_ste(smmu, dst->data, sid);
 
-	if (cd_table)
-		smmu_free_cd(cd_table, pasid_bits);
 	smmu_put_ref_domain(smmu, smmu_domain);
 out_unlock:
 	kvm_iommu_unlock(iommu);
 	hyp_write_unlock(&smmu_domain->list_lock);
+
+	if (cd_table && pasid == 0 && !ret)
+		smmu_free_cd(cd_table, pasid_bits);
 	return ret;
 }
 
@@ -1542,6 +1548,14 @@ static size_t smmu_unmap_pages(struct kvm_hyp_iommu_domain *domain, unsigned lon
 		total_unmapped += unmapped;
 		pgcount -= unmapped / pgsize;
 	}
+
+	/*
+	 * Eagerly drain the gather list before the core code does to Keep
+	 * the page table walk locked.
+	 */
+	smmu_iotlb_sync(domain, gather);
+	gather->pgsize = 0;
+	iommu_iotlb_gather_init(gather);
 	hyp_spin_unlock(&smmu_domain->pgt_lock);
 	return total_unmapped;
 }
@@ -1622,6 +1636,8 @@ static int smmu_dev_block_dma(struct kvm_hyp_iommu *iommu, u32 sid, bool is_host
 	struct hyp_arm_smmu_v3_device *smmu = to_smmu(iommu);
 	static struct arm_smmu_ste *dst;
 	int ret = 0;
+	u64 *cd_table = NULL;
+	size_t cd_sz;
 
 	kvm_iommu_lock(iommu);
 	dst = smmu_get_ste_ptr(smmu, sid);
@@ -1643,23 +1659,25 @@ static int smmu_dev_block_dma(struct kvm_hyp_iommu *iommu, u32 sid, bool is_host
 			u32 cfg = FIELD_GET(STRTAB_STE_0_CFG, le64_to_cpu(dst->data[0]));
 
 			if (cfg == STRTAB_STE_0_CFG_S1_TRANS) {
-				size_t nr_entries, cd_sz;
-				u64 cd_table;
+				size_t nr_entries;
 
-				cd_table = (le64_to_cpu(dst->data[0]) & STRTAB_STE_0_S1CTXPTR_MASK);
+				cd_table = hyp_phys_to_virt(le64_to_cpu(dst->data[0]) &
+							    STRTAB_STE_0_S1CTXPTR_MASK);
 				nr_entries = 1 << FIELD_GET(STRTAB_STE_0_S1CDMAX,
 							    le64_to_cpu(dst->data[0]));
-				cd_sz = (1 << nr_entries) * (CTXDESC_CD_DWORDS << 3);
-				kvm_iommu_reclaim_pages(hyp_phys_to_virt(cd_table), get_order(cd_sz));
+				cd_sz = nr_entries * (CTXDESC_CD_DWORDS << 3);
 			}
 			/* zap zippity zop. */
 			for (i = 0; i < STRTAB_STE_DWORDS; i++)
 				dst->data[i] = 0;
-			ret = smmu_sync_ste(smmu, sid);
+			ret = smmu_sync_ste(smmu, dst->data, sid);
 		}
 	}
 
 	kvm_iommu_unlock(iommu);
+	if (cd_table)
+		kvm_iommu_reclaim_pages(cd_table, get_order(cd_sz));
+
 	return ret;
 }
 

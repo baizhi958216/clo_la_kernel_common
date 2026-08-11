@@ -19,6 +19,22 @@ DECLARE_RESTRICTED_HOOK(android_rvh_set_balance_anon_file_reclaim,
 DECLARE_RESTRICTED_HOOK(android_rvh_kswapd_shrink_node,
 			TP_PROTO(unsigned long *nr_reclaimed),
 			TP_ARGS(nr_reclaimed), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_kswapd_shrink_node_bypass,
+			TP_PROTO(unsigned long *nr_to_reclaim, unsigned long *nr_scanned,
+			unsigned long *nr_reclaimed, bool *bypass),
+			TP_ARGS(nr_to_reclaim, nr_scanned, nr_reclaimed, bypass), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_mglru_shrink_spec_lru,
+			TP_PROTO(struct lruvec *lruvec, struct scan_control *sc,
+			int swappiness, int *delta, unsigned long nr_to_scan,
+			unsigned long *scanned, bool *skip),
+			TP_ARGS(lruvec, sc, swappiness, delta, nr_to_scan, scanned, skip), 1);
+DECLARE_RESTRICTED_HOOK(android_rvh_shrink_spec_lru,
+	TP_PROTO(struct lruvec *lruvec, struct scan_control *sc,
+		 unsigned long *nr_reclaimed, unsigned long nr_to_reclaim,
+		 bool proportional_reclaim, const unsigned long *nr,
+		 bool *skip),
+	TP_ARGS(lruvec, sc, nr_reclaimed, nr_to_reclaim,
+		proportional_reclaim, nr, skip), 1);
 DECLARE_HOOK(android_vh_check_folio_look_around_ref,
 	TP_PROTO(struct folio *folio, int *skip),
 	TP_ARGS(folio, skip));
@@ -35,6 +51,12 @@ DECLARE_HOOK(android_vh_shrink_folio_list,
 	TP_PROTO(struct folio *folio, bool dirty, bool writeback,
 		bool *activate, bool *keep),
 	TP_ARGS(folio, dirty, writeback, activate, keep));
+DECLARE_HOOK(android_vh_shrink_folio_lock_owner_set,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
+DECLARE_HOOK(android_vh_shrink_folio_lock_owner_clear,
+	TP_PROTO(struct folio *folio),
+	TP_ARGS(folio));
 DECLARE_HOOK(android_vh_inode_lru_isolate,
 	TP_PROTO(struct inode *inode, bool *skip),
 	TP_ARGS(inode, skip));
@@ -98,6 +120,12 @@ DECLARE_HOOK(android_vh_use_vm_swappiness,
 DECLARE_HOOK(android_vh_tune_scan_control,
 	TP_PROTO(bool *skip_swap),
 	TP_ARGS(skip_swap));
+DECLARE_HOOK(android_vh_handle_folio_writeback,
+	TP_PROTO(struct folio *folio, bool *bypass),
+	TP_ARGS(folio, bypass));
+DECLARE_HOOK(android_vh_reclaim_before_kswapd,
+	TP_PROTO(unsigned long *nr_reclaimed),
+	TP_ARGS(nr_reclaimed));
 DECLARE_HOOK(android_vh_page_referenced_check_bypass,
 	TP_PROTO(struct folio *folio, unsigned long nr_to_scan, int lru, bool *bypass),
 	TP_ARGS(folio, nr_to_scan, lru, bypass));
@@ -112,6 +140,12 @@ DECLARE_HOOK(android_vh_vmscan_kswapd_done,
 	TP_PROTO(int node_id, unsigned int highest_zoneidx, unsigned int alloc_order,
 		unsigned int reclaim_order),
 	TP_ARGS(node_id, highest_zoneidx, alloc_order, reclaim_order));
+DECLARE_HOOK(android_vh_remove_mapping,
+	TP_PROTO(struct address_space *mapping, struct folio *folio, bool reclaimed),
+	TP_ARGS(mapping, folio, reclaimed));
+DECLARE_HOOK(android_vh_remove_mapping_failed,
+	TP_PROTO(struct address_space *mapping, struct folio *folio, bool reclaimed),
+	TP_ARGS(mapping, folio, reclaimed));
 DECLARE_RESTRICTED_HOOK(android_rvh_vmscan_kswapd_wake,
 	TP_PROTO(int node_id, unsigned int highest_zoneidx, unsigned int alloc_order),
 	TP_ARGS(node_id, highest_zoneidx, alloc_order), 1);
@@ -128,6 +162,12 @@ DECLARE_HOOK(android_vh_direct_reclaim_end,
 DECLARE_HOOK(android_vh_throttle_direct_reclaim_bypass,
 	TP_PROTO(bool *bypass),
 	TP_ARGS(bypass));
+DECLARE_HOOK(android_vh_folio_skip_activate,
+	TP_PROTO(struct folio *folio, bool *skip),
+	TP_ARGS(folio, skip));
+DECLARE_HOOK(android_vh_folio_trylock_clear_bypass,
+	TP_PROTO(struct folio *folio, bool *bypass),
+	TP_ARGS(folio, bypass));
 DECLARE_HOOK(android_vh_shrink_node,
 	TP_PROTO(pg_data_t *pgdat, struct mem_cgroup *memcg),
 	TP_ARGS(pgdat, memcg));
@@ -145,6 +185,9 @@ DECLARE_HOOK(android_vh_mm_customize_file_is_tiny,
 DECLARE_HOOK(android_vh_mm_customize_pgdat_balanced,
 	TP_PROTO(int order, int highest_zoneidx, bool *balanced, bool *customized),
 	TP_ARGS(order, highest_zoneidx, balanced, customized));
+DECLARE_HOOK(android_vh_mm_get_zone_mark,
+	TP_PROTO(struct zone *zone, unsigned long *mark),
+	TP_ARGS(zone, mark));
 DECLARE_HOOK(android_vh_mm_customize_reclaim_idx,
 	TP_PROTO(int order, gfp_t gfp, s8 *reclaim_idx, enum zone_type *highest_zoneidx),
 	TP_ARGS(order, gfp, reclaim_idx, highest_zoneidx));

@@ -4132,6 +4132,17 @@
 			nosmt=force: Force disable SMT, cannot be undone
 				     via the sysfs control file.
 
+
+	nosocid		[ARM, ARM64] Disable SMCCC SoC ID driver
+			Disables initialization of the ARM SMCCC SoC ID driver
+			(CONFIG_ARM_SMCCC_SOC_ID) at boot. When specified, the
+			driver does not register the SoC device and related sysfs
+			entries under /sys/bus/soc/devices/soc0/*.
+			Useful for images that include the driver in a generic
+			build (e.g., GKI) but wish to suppress SoC ID exposure
+			at runtime without recompiling.
+			Format: "nosocid" (no value).
+
 	nosoftlockup	[KNL] Disable the soft-lockup detector.
 
 	nospec_store_bypass_disable
@@ -6968,6 +6979,14 @@
 
 				reserve_mem=12M:4096:trace trace_instance=boot_map^traceoff^traceprintk@trace,sched,irq
 
+			Note, saving the trace buffer across reboots does require that the system
+			is set up to not wipe memory. For instance, CONFIG_RESET_ATTACK_MITIGATION
+			can force a memory reset on boot which will clear any trace that was stored.
+			This is just one of many ways that can clear memory. Make sure your system
+			keeps the content of memory across reboots before relying on this option.
+
+			NB: Both the mapped address and size must be page aligned for the architecture.
+
 			See also Documentation/trace/debugging.rst
 
 
@@ -7315,6 +7334,9 @@
 				p = USB_QUIRK_SHORT_SET_ADDRESS_REQ_TIMEOUT
 					(Reduce timeout of the SET_ADDRESS
 					request from 5000 ms to 500 ms);
+				q = USB_QUIRK_FORCE_ONE_CONFIG (Device
+					claims zero configurations,
+					forcing to 1);
 			Example: quirks=0781:5580:bk,0a5c:5834:gij
 
 	usbhid.mousepoll=

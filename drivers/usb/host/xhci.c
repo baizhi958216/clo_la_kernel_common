@@ -21,6 +21,8 @@
 #include <linux/dma-mapping.h>
 #include <linux/usb/xhci-sideband.h>
 
+#include <trace/hooks/dwc3.h>
+
 #include "xhci.h"
 #include "xhci-trace.h"
 #include "xhci-debugfs.h"
@@ -190,10 +192,16 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 		return 0;
 	}
 
+	trace_android_vh_dwc3_xhci_soft_reset(xhci_to_hcd(xhci),
+					      PRE_SOFT_RESET);
+
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "// Reset the HC");
 	command = readl(&xhci->op_regs->command);
 	command |= CMD_RESET;
 	writel(command, &xhci->op_regs->command);
+
+	trace_android_vh_dwc3_xhci_soft_reset(xhci_to_hcd(xhci),
+					      SOFT_RESET_INITIATED);
 
 	/* Existing Intel xHCI controllers require a delay of 1 mS,
 	 * after setting the CMD_RESET bit, and before accessing any
@@ -206,6 +214,9 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 		udelay(1000);
 
 	ret = xhci_handshake(&xhci->op_regs->command, CMD_RESET, 0, timeout_us);
+
+	trace_android_vh_dwc3_xhci_soft_reset(xhci_to_hcd(xhci),
+					      POST_SOFT_RESET);
 	if (ret)
 		return ret;
 
@@ -3873,6 +3884,7 @@ static int xhci_discover_or_reset_device(struct usb_hcd *hcd,
 				xhci_get_slot_state(xhci, virt_dev->out_ctx));
 		xhci_dbg(xhci, "Not freeing device rings.\n");
 		/* Don't treat this as an error.  May change my mind later. */
+		virt_dev->flags = 0;
 		ret = 0;
 		goto command_cleanup;
 	case COMP_SUCCESS:
@@ -3995,7 +4007,7 @@ int xhci_disable_slot(struct xhci_hcd *xhci, u32 slot_id)
 	if (state == 0xffffffff || (xhci->xhc_state & XHCI_STATE_DYING) ||
 			(xhci->xhc_state & XHCI_STATE_HALTED)) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
-		kfree(command);
+		xhci_free_command(xhci, command);
 		return -ENODEV;
 	}
 
@@ -4003,7 +4015,7 @@ int xhci_disable_slot(struct xhci_hcd *xhci, u32 slot_id)
 				slot_id);
 	if (ret) {
 		spin_unlock_irqrestore(&xhci->lock, flags);
-		kfree(command);
+		xhci_free_command(xhci, command);
 		return ret;
 	}
 	xhci_ring_cmd_db(xhci);

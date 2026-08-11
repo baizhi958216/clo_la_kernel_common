@@ -3,6 +3,8 @@
 // Copyright (C) 2024 Google LLC.
 
 //! Binder -- the Android IPC mechanism.
+
+#![crate_name = "rust_binder"]
 #![recursion_limit = "256"]
 
 use kernel::{
@@ -31,6 +33,7 @@ mod context;
 mod deferred_close;
 mod defs;
 mod error;
+mod netlink;
 mod node;
 mod page_range;
 mod prio;
@@ -84,12 +87,19 @@ module! {
 }
 
 use kernel::bindings::rust_binder_layout;
-#[no_mangle]
-static RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
+const RUST_BINDER_LAYOUT: rust_binder_layout = rust_binder_layout {
     t: transaction::TRANSACTION_LAYOUT,
     th: thread::THREAD_LAYOUT,
     p: process::PROCESS_LAYOUT,
     n: node::NODE_LAYOUT,
+    __kabi_reserved_backport0: 0,
+    __kabi_reserved_backport1: 0,
+    __kabi_reserved_backport2: 0,
+    __kabi_reserved_backport3: 0,
+    __kabi_reserved_backport4: 0,
+    __kabi_reserved_backport5: 0,
+    __kabi_reserved_backport6: 0,
+    __kabi_reserved_backport7: 0,
 };
 
 fn next_debug_id() -> usize {
@@ -291,14 +301,21 @@ fn ptr_align(value: usize) -> Option<usize> {
 // SAFETY: We call register in `init`.
 static BINDER_SHRINKER: Shrinker = unsafe { Shrinker::new() };
 
-struct BinderModule {}
+struct BinderModule {
+    _netlink: Option<kernel::net::netlink::Registration>,
+}
 
 impl kernel::Module for BinderModule {
-    fn init(module: &'static kernel::ThisModule) -> Result<Self> {
+    fn init(_module: &'static kernel::ThisModule) -> Result<Self> {
         // SAFETY: The module initializer never runs twice, so we only call this once.
         unsafe { crate::context::CONTEXTS.init() };
 
+        // SAFETY: Nobody will access this except through tracepoints triggered by this driver, so
+        // currently safe to write.
+        unsafe { bindings::RUST_BINDER_LAYOUT = RUST_BINDER_LAYOUT };
+
         // SAFETY: This just accesses global booleans.
+        #[cfg(CONFIG_ANDROID_BINDER_IPC)]
         unsafe {
             #[allow(improper_ctypes)]
             extern "C" {
@@ -308,31 +325,36 @@ impl kernel::Module for BinderModule {
             }
 
             if binder_use_rust == 0 {
-                binder_remove_trace_events(module.as_ptr());
-                return Ok(Self {});
+                #[cfg(CONFIG_EVENT_TRACING)]
+                binder_remove_trace_events(_module.as_ptr());
+                return Ok(Self { _netlink: None });
             }
             if unload_binder() != 0 {
                 pr_err!("Failed to unload C Binder.");
-                binder_remove_trace_events(module.as_ptr());
-                return Ok(Self {});
+                #[cfg(CONFIG_EVENT_TRACING)]
+                binder_remove_trace_events(_module.as_ptr());
+                return Ok(Self { _netlink: None });
             }
         }
 
         pr_warn!("Loaded Rust Binder.");
 
+        let netlink = crate::netlink::BINDER_NL_FAMILY.register()?;
         BINDER_SHRINKER.register(kernel::c_str!("android-binder"))?;
 
         // SAFETY: The module is being loaded, so we can initialize binderfs.
         unsafe { kernel::error::to_result(binderfs::init_rust_binderfs())? };
 
-        Ok(Self {})
+        Ok(Self {
+            _netlink: Some(netlink),
+        })
     }
 }
 
 /// Makes the inner type Sync.
 #[repr(transparent)]
 pub struct AssertSync<T>(T);
-// SAFETY: Used only to insert `file_operations` into a global, which is safe.
+// SAFETY: Used only to insert C bindings types into globals, which is safe.
 unsafe impl<T> Sync for AssertSync<T> {}
 
 /// File operations that rust_binderfs.c can use.
@@ -345,8 +367,9 @@ pub static rust_binder_fops: AssertSync<kernel::bindings::file_operations> = {
     let ops = kernel::bindings::file_operations {
         owner: THIS_MODULE.as_ptr(),
         poll: Some(rust_binder_poll),
-        unlocked_ioctl: Some(rust_binder_unlocked_ioctl),
-        compat_ioctl: Some(rust_binder_compat_ioctl),
+        unlocked_ioctl: Some(rust_binder_ioctl),
+        #[cfg(CONFIG_COMPAT)]
+        compat_ioctl: Some(bindings::compat_ptr_ioctl),
         mmap: Some(rust_binder_mmap),
         open: Some(rust_binder_open),
         release: Some(rust_binder_release),
@@ -356,6 +379,8 @@ pub static rust_binder_fops: AssertSync<kernel::bindings::file_operations> = {
     AssertSync(ops)
 };
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_new_context(
     name: *const kernel::ffi::c_char,
@@ -368,6 +393,8 @@ unsafe extern "C" fn rust_binder_new_context(
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_remove_context(device: *mut kernel::ffi::c_void) {
     if !device.is_null() {
@@ -379,6 +406,8 @@ unsafe extern "C" fn rust_binder_remove_context(device: *mut kernel::ffi::c_void
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 unsafe extern "C" fn rust_binder_open(
     inode: *mut bindings::inode,
     file_ptr: *mut bindings::file,
@@ -412,6 +441,8 @@ unsafe extern "C" fn rust_binder_open(
     0
 }
 
+/// # Safety
+/// Only called by binderfs.
 unsafe extern "C" fn rust_binder_release(
     _inode: *mut bindings::inode,
     file: *mut bindings::file,
@@ -424,21 +455,9 @@ unsafe extern "C" fn rust_binder_release(
     0
 }
 
-unsafe extern "C" fn rust_binder_compat_ioctl(
-    file: *mut bindings::file,
-    cmd: kernel::ffi::c_uint,
-    arg: kernel::ffi::c_ulong,
-) -> kernel::ffi::c_long {
-    // SAFETY: We previously set `private_data` in `rust_binder_open`.
-    let f = unsafe { Arc::<Process>::borrow((*file).private_data) };
-    // SAFETY: The caller ensures that the file is valid.
-    match Process::compat_ioctl(f, unsafe { File::from_raw_file(file) }, cmd as _, arg as _) {
-        Ok(()) => 0,
-        Err(err) => err.to_errno() as isize,
-    }
-}
-
-unsafe extern "C" fn rust_binder_unlocked_ioctl(
+/// # Safety
+/// Only called by binderfs.
+unsafe extern "C" fn rust_binder_ioctl(
     file: *mut bindings::file,
     cmd: kernel::ffi::c_uint,
     arg: kernel::ffi::c_ulong,
@@ -452,6 +471,8 @@ unsafe extern "C" fn rust_binder_unlocked_ioctl(
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 unsafe extern "C" fn rust_binder_mmap(
     file: *mut bindings::file,
     vma: *mut bindings::vm_area_struct,
@@ -467,6 +488,8 @@ unsafe extern "C" fn rust_binder_mmap(
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 unsafe extern "C" fn rust_binder_poll(
     file: *mut bindings::file,
     wait: *mut bindings::poll_table_struct,
@@ -482,6 +505,8 @@ unsafe extern "C" fn rust_binder_poll(
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 unsafe extern "C" fn rust_binder_flush(
     file: *mut bindings::file,
     _id: bindings::fl_owner_t,
@@ -494,6 +519,8 @@ unsafe extern "C" fn rust_binder_flush(
     }
 }
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_stats_show(
     ptr: *mut seq_file,
@@ -508,6 +535,8 @@ unsafe extern "C" fn rust_binder_stats_show(
     0
 }
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_state_show(
     ptr: *mut seq_file,
@@ -522,6 +551,8 @@ unsafe extern "C" fn rust_binder_state_show(
     0
 }
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_proc_show(
     ptr: *mut seq_file,
@@ -538,6 +569,8 @@ unsafe extern "C" fn rust_binder_proc_show(
     0
 }
 
+/// # Safety
+/// Only called by binderfs.
 #[no_mangle]
 unsafe extern "C" fn rust_binder_transactions_show(
     ptr: *mut seq_file,
