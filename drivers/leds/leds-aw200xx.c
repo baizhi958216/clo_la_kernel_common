@@ -16,9 +16,12 @@
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
+#include <linux/string.h>
 #include <linux/time.h>
 #include <linux/units.h>
+#include <linux/workqueue.h>
 
 #define AW200XX_DIM_MAX                  (BIT(6) - 1)
 #define AW200XX_FADE_MAX                 (BIT(8) - 1)
@@ -112,6 +115,19 @@ struct aw200xx_led {
 	u32 num;
 };
 
+enum aw200xx_board_mode {
+	AW200XX_BOARD_OFF = 0,
+	AW200XX_BOARD_SOLID,
+	AW200XX_BOARD_BREATH,
+};
+
+enum aw200xx_board_color {
+	AW200XX_COLOR_WHITE = 0,
+	AW200XX_COLOR_RED,
+	AW200XX_COLOR_GREEN,
+	AW200XX_COLOR_BLUE,
+};
+
 struct aw200xx {
 	const struct aw200xx_chipdef *cdef;
 	struct i2c_client *client;
@@ -120,6 +136,24 @@ struct aw200xx {
 	u32 num_leds;
 	u32 display_rows;
 	struct gpio_desc *hwen;
+
+	/* Board-level controls (whole ring) */
+	enum aw200xx_board_mode board_mode;
+	enum aw200xx_board_color board_color;
+
+	/*
+	 * board_brightness: runtime brightness currently applied (used by breath).
+	 * solid_brightness: user/boot configured "solid target" brightness.
+	 * When switching breath -> solid, we restore solid_brightness.
+	 */
+	u8 board_brightness; /* 0..255 */
+	u8 solid_brightness; /* 0..255 */
+
+	u8 breath_step;      /* 1..255 */
+	u32 breath_interval_ms;
+	bool breath_dir_up;
+	struct delayed_work breath_work;
+
 	struct aw200xx_led leds[] __counted_by(num_leds);
 };
 
@@ -181,6 +215,274 @@ static struct attribute *dim_attrs[] = {
 	NULL
 };
 ATTRIBUTE_GROUPS(dim);
+
+static int aw200xx_set_channel_brightness_locked(struct aw200xx *chip, u32 chan,
+						 u8 brightness)
+{
+	u32 columns = chip->cdef->display_size_columns;
+	u32 reg = AW200XX_REG_DIM(chan, columns);
+	u8 dim = AW200XX_REG_FADE2DIM(brightness);
+	int ret;
+
+	ret = regmap_write(chip->regmap, reg, dim);
+	if (ret)
+		return ret;
+
+	return regmap_write(chip->regmap, AW200XX_REG_DIM2FADE(reg), brightness);
+}
+
+static int aw200xx_board_apply_locked(struct aw200xx *chip, u8 brightness)
+{
+	u32 chan;
+	u8 r = 0, g = 0, b = 0;
+
+	switch (chip->board_color) {
+	case AW200XX_COLOR_RED:
+		r = brightness;
+		break;
+	case AW200XX_COLOR_GREEN:
+		g = brightness;
+		break;
+	case AW200XX_COLOR_BLUE:
+		b = brightness;
+		break;
+	case AW200XX_COLOR_WHITE:
+	default:
+		r = g = b = brightness;
+		break;
+	}
+
+	/*
+	 * Board wiring confirmed by you:
+	 *   ch(3n+0)=R, ch(3n+1)=G, ch(3n+2)=B
+	 */
+	for (chan = 0; chan < chip->cdef->channels; chan++) {
+		u8 v;
+
+		switch (chan % 3) {
+		case 0:
+			v = r;
+			break;
+		case 1:
+			v = g;
+			break;
+		default:
+			v = b;
+			break;
+		}
+
+		/* Ignore errors? No, fail fast. */
+		if (aw200xx_set_channel_brightness_locked(chip, chan, v))
+			return -EIO;
+	}
+
+	return 0;
+}
+
+static void aw200xx_breath_workfn(struct work_struct *work)
+{
+	struct aw200xx *chip =
+		container_of(to_delayed_work(work), struct aw200xx, breath_work);
+	u8 br;
+	u8 step;
+	int ret;
+
+	mutex_lock(&chip->mutex);
+
+	if (chip->board_mode != AW200XX_BOARD_BREATH) {
+		mutex_unlock(&chip->mutex);
+		return;
+	}
+
+	br = chip->board_brightness;
+	step = chip->breath_step ? chip->breath_step : 5;
+
+	if (chip->breath_dir_up) {
+		if (br + step >= 255) {
+			br = 255;
+			chip->breath_dir_up = false;
+		} else {
+			br += step;
+		}
+	} else {
+		if (br <= step) {
+			br = 0;
+			chip->breath_dir_up = true;
+		} else {
+			br -= step;
+		}
+	}
+
+	chip->board_brightness = br;
+	ret = aw200xx_board_apply_locked(chip, br);
+
+	mutex_unlock(&chip->mutex);
+
+	if (!ret && chip->board_mode == AW200XX_BOARD_BREATH)
+		schedule_delayed_work(&chip->breath_work,
+				      msecs_to_jiffies(chip->breath_interval_ms));
+}
+
+static ssize_t board_brightness_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+
+	/* Expose the "solid target" brightness to userspace */
+	return sysfs_emit(buf, "%u\n", chip->solid_brightness);
+}
+
+static ssize_t board_brightness_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+	unsigned int v;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &v);
+	if (ret)
+		return ret;
+	if (v > 255)
+		return -EINVAL;
+
+	mutex_lock(&chip->mutex);
+
+	/*
+	 * Always update the solid target.
+	 * If we're currently in SOLID, apply immediately.
+	 * If we're in BREATH, keep breathing based on board_brightness, but the
+	 * next switch to SOLID will restore this solid_brightness.
+	 */
+	chip->solid_brightness = (u8)v;
+
+	if (chip->board_mode == AW200XX_BOARD_SOLID) {
+		chip->board_brightness = chip->solid_brightness;
+		ret = aw200xx_board_apply_locked(chip, chip->board_brightness);
+	} else {
+		ret = 0;
+	}
+
+	mutex_unlock(&chip->mutex);
+
+	return ret ? ret : count;
+}
+static DEVICE_ATTR_RW(board_brightness);
+
+static ssize_t board_color_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+
+	switch (chip->board_color) {
+	case AW200XX_COLOR_RED:
+		return sysfs_emit(buf, "red\n");
+	case AW200XX_COLOR_GREEN:
+		return sysfs_emit(buf, "green\n");
+	case AW200XX_COLOR_BLUE:
+		return sysfs_emit(buf, "blue\n");
+	case AW200XX_COLOR_WHITE:
+	default:
+		return sysfs_emit(buf, "white\n");
+	}
+}
+
+static ssize_t board_color_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+	int ret = 0;
+
+	mutex_lock(&chip->mutex);
+
+	if (sysfs_streq(buf, "red")) {
+		chip->board_color = AW200XX_COLOR_RED;
+	} else if (sysfs_streq(buf, "green")) {
+		chip->board_color = AW200XX_COLOR_GREEN;
+	} else if (sysfs_streq(buf, "blue")) {
+		chip->board_color = AW200XX_COLOR_BLUE;
+	} else if (sysfs_streq(buf, "white")) {
+		chip->board_color = AW200XX_COLOR_WHITE;
+	} else {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (chip->board_mode == AW200XX_BOARD_SOLID)
+		ret = aw200xx_board_apply_locked(chip, chip->board_brightness);
+
+out:
+	mutex_unlock(&chip->mutex);
+	return ret ? ret : count;
+}
+static DEVICE_ATTR_RW(board_color);
+
+static ssize_t board_mode_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+
+	switch (chip->board_mode) {
+	case AW200XX_BOARD_OFF:
+		return sysfs_emit(buf, "off\n");
+	case AW200XX_BOARD_BREATH:
+		return sysfs_emit(buf, "breath\n");
+	case AW200XX_BOARD_SOLID:
+	default:
+		return sysfs_emit(buf, "solid\n");
+	}
+}
+
+static ssize_t board_mode_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct aw200xx *chip = dev_get_drvdata(dev);
+	int ret = 0;
+
+	mutex_lock(&chip->mutex);
+
+	if (sysfs_streq(buf, "off")) {
+		chip->board_mode = AW200XX_BOARD_OFF;
+		cancel_delayed_work(&chip->breath_work);
+		ret = aw200xx_board_apply_locked(chip, 0);
+	} else if (sysfs_streq(buf, "solid")) {
+		chip->board_mode = AW200XX_BOARD_SOLID;
+		cancel_delayed_work(&chip->breath_work);
+
+		/* Restore solid target brightness when leaving breath */
+		chip->board_brightness = chip->solid_brightness;
+		ret = aw200xx_board_apply_locked(chip, chip->board_brightness);
+	} else if (sysfs_streq(buf, "breath")) {
+		chip->board_mode = AW200XX_BOARD_BREATH;
+		chip->breath_dir_up = true;
+		if (!chip->breath_interval_ms)
+			chip->breath_interval_ms = 20;
+		if (!chip->breath_step)
+			chip->breath_step = 5;
+		/* start from 0 for visible breathe-in */
+		chip->board_brightness = 0;
+		ret = aw200xx_board_apply_locked(chip, 0);
+		if (!ret)
+			schedule_delayed_work(&chip->breath_work,
+					      msecs_to_jiffies(chip->breath_interval_ms));
+	} else {
+		ret = -EINVAL;
+	}
+
+	mutex_unlock(&chip->mutex);
+	return ret ? ret : count;
+}
+static DEVICE_ATTR_RW(board_mode);
+
+static struct attribute *aw200xx_board_attrs[] = {
+	&dev_attr_board_mode.attr,
+	&dev_attr_board_color.attr,
+	&dev_attr_board_brightness.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(aw200xx_board);
 
 static int aw200xx_brightness_set(struct led_classdev *cdev,
 				  enum led_brightness brightness)
@@ -330,7 +632,14 @@ static int aw200xx_chip_reset(const struct aw200xx *const chip)
 
 static int aw200xx_chip_init(const struct aw200xx *const chip)
 {
+	u32 columns;
+	u32 chan;
 	int ret;
+
+	if (!chip || !chip->cdef)
+		return -EINVAL;
+
+	columns = chip->cdef->display_size_columns;
 
 	ret = regmap_write(chip->regmap, AW200XX_REG_DSIZE,
 			   chip->display_rows - 1);
@@ -342,8 +651,27 @@ static int aw200xx_chip_init(const struct aw200xx *const chip)
 	if (ret)
 		return ret;
 
-	return regmap_update_bits(chip->regmap, AW200XX_REG_GCCR,
-				  AW200XX_GCCR_ALLON, AW200XX_GCCR_ALLON);
+	ret = regmap_update_bits(chip->regmap, AW200XX_REG_GCCR,
+				 AW200XX_GCCR_ALLON, AW200XX_GCCR_ALLON);
+	if (ret)
+		return ret;
+
+	/*
+	 * Match legacy/vendor init: program Page1 DIM (per-channel current
+	 * scaling) to max (0x3f) for all channels. Without this, even with
+	 * Page4 DIM/FADE maxed, LEDs may appear much dimmer.
+	 *
+	 * Reference: leds-aw20072-reg.h sets page=0xC1 and writes 0x00..0x47=0x3f.
+	 */
+	for (chan = 0; chan < chip->cdef->channels; chan++) {
+		ret = regmap_write(chip->regmap,
+				   AW200XX_REG_DIM_PAGE1(chan, columns),
+				   AW200XX_DIM_MAX);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int aw200xx_chip_check(const struct aw200xx *const chip)
@@ -540,6 +868,103 @@ static void aw200xx_disable_action(void *data)
 	aw200xx_disable(data);
 }
 
+static void aw200xx_cancel_breath_work_action(void *data)
+{
+	struct aw200xx *chip = data;
+
+	cancel_delayed_work_sync(&chip->breath_work);
+}
+
+static int aw200xx_add_board_groups(struct device *dev)
+{
+	const struct attribute_group *const *grp;
+	int ret;
+
+	for (grp = aw200xx_board_groups; *grp; grp++) {
+		ret = devm_device_add_group(dev, *grp);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int aw200xx_apply_boot_board_cfg(struct aw200xx *chip)
+{
+	struct device *dev = &chip->client->dev;
+	const char *mode = NULL;
+	const char *color = NULL;
+	u32 br = 0;
+	u32 interval_ms = 0;
+	u32 step = 0;
+	int ret;
+
+	/* Defaults: solid white @ 0 (off) unless DT asks otherwise */
+	chip->board_mode = AW200XX_BOARD_OFF;
+	chip->board_color = AW200XX_COLOR_WHITE;
+	chip->board_brightness = 0;
+	chip->solid_brightness = 0;
+	chip->breath_interval_ms = 20;
+	chip->breath_step = 5;
+
+	device_property_read_string(dev, "awinic,boot-mode", &mode);
+	device_property_read_string(dev, "awinic,boot-color", &color);
+	device_property_read_u32(dev, "awinic,boot-brightness", &br);
+	device_property_read_u32(dev, "awinic,breath-interval-ms", &interval_ms);
+	device_property_read_u32(dev, "awinic,breath-step", &step);
+
+	if (br > 255)
+		br = 255;
+	chip->solid_brightness = (u8)br;
+	chip->board_brightness = chip->solid_brightness;
+
+	if (interval_ms)
+		chip->breath_interval_ms = interval_ms;
+	if (step && step <= 255)
+		chip->breath_step = (u8)step;
+
+	if (color) {
+		if (!strcmp(color, "red"))
+			chip->board_color = AW200XX_COLOR_RED;
+		else if (!strcmp(color, "green"))
+			chip->board_color = AW200XX_COLOR_GREEN;
+		else if (!strcmp(color, "blue"))
+			chip->board_color = AW200XX_COLOR_BLUE;
+		else
+			chip->board_color = AW200XX_COLOR_WHITE;
+	}
+
+	if (mode) {
+		if (!strcmp(mode, "solid"))
+			chip->board_mode = AW200XX_BOARD_SOLID;
+		else if (!strcmp(mode, "breath"))
+			chip->board_mode = AW200XX_BOARD_BREATH;
+		else if (!strcmp(mode, "off"))
+			chip->board_mode = AW200XX_BOARD_OFF;
+	}
+
+	/*
+	 * Apply boot state (called with chip->mutex held by probe).
+	 * chip_init() has already enabled ALLON + active mode.
+	 */
+	if (chip->board_mode == AW200XX_BOARD_OFF)
+		return aw200xx_board_apply_locked(chip, 0);
+
+	if (chip->board_mode == AW200XX_BOARD_SOLID)
+		return aw200xx_board_apply_locked(chip, chip->board_brightness);
+
+	/* breath */
+	chip->breath_dir_up = true;
+	chip->board_brightness = 0; /* keep solid_brightness unchanged */
+	ret = aw200xx_board_apply_locked(chip, 0);
+	if (ret)
+		return ret;
+
+	schedule_delayed_work(&chip->breath_work,
+			      msecs_to_jiffies(chip->breath_interval_ms));
+	return 0;
+}
+
 static int aw200xx_probe(struct i2c_client *client)
 {
 	const struct aw200xx_chipdef *cdef;
@@ -566,6 +991,8 @@ static int aw200xx_probe(struct i2c_client *client)
 	chip->client = client;
 	i2c_set_clientdata(client, chip);
 
+	INIT_DELAYED_WORK(&chip->breath_work, aw200xx_breath_workfn);
+
 	chip->regmap = devm_regmap_init_i2c(client, &aw200xx_regmap_config);
 	if (IS_ERR(chip->regmap))
 		return PTR_ERR(chip->regmap);
@@ -579,6 +1006,10 @@ static int aw200xx_probe(struct i2c_client *client)
 	aw200xx_enable(chip);
 
 	ret = devm_add_action(&client->dev, aw200xx_disable_action, chip);
+	if (ret)
+		return ret;
+
+	ret = devm_add_action(&client->dev, aw200xx_cancel_breath_work_action, chip);
 	if (ret)
 		return ret;
 
@@ -606,6 +1037,15 @@ static int aw200xx_probe(struct i2c_client *client)
 		goto out_unlock;
 
 	ret = aw200xx_chip_init(chip);
+	if (ret)
+		goto out_unlock;
+
+	/* Create board-level sysfs controls under the i2c device */
+	ret = aw200xx_add_board_groups(&client->dev);
+	if (ret)
+		goto out_unlock;
+
+	ret = aw200xx_apply_boot_board_cfg(chip);
 
 out_unlock:
 	if (ret)
