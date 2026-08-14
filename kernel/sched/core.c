@@ -2222,9 +2222,19 @@ static inline void proxy_remove_from_sleeping_owner(struct task_struct *p)
 	struct task_struct *owner = READ_ONCE(p->sleeping_owner);
 
 	if (owner) {
+		/*
+		 * __proxy_remove_from_sleeping_owner() does a
+		 * put on owner to match the get done in
+		 * proxy_enqueue_on_owner(). If that put is the
+		 * last one and it frees owner, we'd be freeing
+		 * a lock we held. So get/put owner around its
+		 * usage her to ensure that doesn't happen.
+		 */
+		get_task_struct(owner);
 		raw_spin_lock(&owner->blocked_lock);
 		__proxy_remove_from_sleeping_owner(owner, p);
 		raw_spin_unlock(&owner->blocked_lock);
+		put_task_struct(owner);
 	}
 }
 
@@ -2301,6 +2311,7 @@ void check_class_changing(struct rq *rq, struct task_struct *p,
 {
 	if (prev_class != p->sched_class && p->sched_class->switching_to)
 		p->sched_class->switching_to(rq, p);
+	trace_android_rvh_check_class_changing(rq, p, prev_class);
 }
 
 /*
@@ -4058,8 +4069,8 @@ static void activate_blocked_waiters(struct rq *target_rq,
 
 			raw_spin_lock_irqsave(&owner->blocked_lock, flags);
 		}
-		put_task_struct(owner); // put matches get prior to adding to local bal_head
 		raw_spin_unlock_irqrestore(&owner->blocked_lock, flags);
+		put_task_struct(owner); // put matches get prior to adding to local bal_head
 	}
 }
 
@@ -7787,6 +7798,19 @@ static void __sched notrace __schedule(int sched_mode)
 		block = try_to_block_task(rq, prev, &prev_state,
 					  !task_is_blocked(prev));
 		switch_count = &prev->nvcsw;
+	} else if (preempt && prev->blocked_on) {
+		/*
+		 * If we are SM_PREEMPT, we may have interrupted
+		 * after blocked_on was set, before schedule()
+		 * was run, preventing workques from running. So
+		 * clear blocked_on and mark task RUNNING so it
+		 * can be reselected to run and complete its
+		 * logic
+		 */
+		if (prev_state & TASK_NORMAL) {
+			WRITE_ONCE(prev->__state, TASK_RUNNING);
+			force_blocked_on_runnable(prev);
+		}
 	}
 
 	prev_not_proxied = !prev->blocked_donor;
