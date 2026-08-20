@@ -340,9 +340,9 @@ int __meminit vmemmap_populate_hugepages(unsigned long start, unsigned long end,
 
 		/* avoid pmd size alloc if no altmap */
 #ifdef CONFIG_QCOM_VM_MEMORY_FEATURES_NONGKI
-		if (pmd_none(READ_ONCE(*pmd)) && altmap) {
+		if (pmd_none(pmdp_get(pmd)) && altmap) {
 #else
-		if (pmd_none(READ_ONCE(*pmd))) {
+		if (pmd_none(pmdp_get(pmd))) {
 #endif
 			void *p;
 
