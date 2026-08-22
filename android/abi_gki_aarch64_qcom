@@ -2308,7 +2308,6 @@
   page_owner_inited
   page_pinner_inited
   __page_pinner_put_page
-  page_pool_alloc_frag
   page_pool_alloc_pages
   page_pool_create
   page_pool_destroy
@@ -3109,7 +3108,6 @@
   skb_copy_datagram_from_iter
   skb_copy_datagram_iter
   skb_copy_expand
-  skb_copy_header
   skb_cow_data
   skb_dequeue
   skb_dequeue_tail
