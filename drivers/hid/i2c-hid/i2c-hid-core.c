@@ -114,6 +114,8 @@ struct i2c_hid {
 	struct work_struct	panel_follower_prepare_work;
 	bool			is_panel_follower;
 	bool			prepare_work_finished;
+
+	struct delayed_work	rearm_after_probe_work;
 };
 
 static const struct i2c_hid_quirks {
@@ -1066,6 +1068,73 @@ static int __i2c_hid_core_probe(struct i2c_hid *ihid)
 	return 0;
 }
 
+/*
+ * The ITE 048d:8987 keyboard EC acks its first post-boot RESET (letting
+ * hid_add_device() succeed) but its key-matrix-scan block stays unarmed
+ * until it's put through an explicit SLEEP then RESET - the same cycle
+ * system suspend/resume (I2C_HID_QUIRK_RESET_ON_RESUME) already performs
+ * for other devices in this driver, and what a manual unbind/bind
+ * incidentally triggers via i2c_hid_core_remove()'s forced suspend. Do it
+ * once here so the keyboard works without requiring a manual rebind or a
+ * suspend/resume cycle first.
+ *
+ * The EC's I2C command interface (PWR_ON/RESET acks) and its key-scan
+ * block have been observed to recover from SLEEP at different rates: the
+ * command interface can start answering again within a few seconds while
+ * the key-scan block is still unarmed. So a clean RESET ack alone is not
+ * proof the keyboard will work, and retrying by resending SLEEP on every
+ * attempt risks restarting the EC's own recovery timer each time. Instead:
+ * send SLEEP exactly once, dwell uninterrupted, then only afterwards treat
+ * a PWR_ON/RESET failure as "I2C slave logic still catching up" and retry
+ * that wake step specifically, without touching SLEEP again.
+ *
+ * This runs from its own workqueue job, scheduled right after
+ * hid_add_device() succeeds, so the dwell below never blocks .probe() or
+ * anything else in the boot sequence.
+ */
+#define I2C_HID_REARM_DWELL_MS		30000
+#define I2C_HID_REARM_WAKE_MAX_TRIES	5
+#define I2C_HID_REARM_WAKE_RETRY_MS	2000
+
+static void i2c_hid_rearm_after_probe_work_fn(struct work_struct *work)
+{
+	struct i2c_hid *ihid = container_of(to_delayed_work(work),
+					     struct i2c_hid,
+					     rearm_after_probe_work);
+	int ret, tries;
+
+	dev_info(&ihid->client->dev,
+		 "re-arming key-scan: sleeping %ums before wake\n",
+		 I2C_HID_REARM_DWELL_MS);
+
+	i2c_hid_set_power(ihid, I2C_HID_PWR_SLEEP);
+	msleep(I2C_HID_REARM_DWELL_MS);
+
+	for (tries = 0; tries < I2C_HID_REARM_WAKE_MAX_TRIES; tries++) {
+		mutex_lock(&ihid->reset_lock);
+		ret = i2c_hid_start_hwreset(ihid);
+		if (ret == 0)
+			ret = i2c_hid_finish_hwreset(ihid);
+		mutex_unlock(&ihid->reset_lock);
+
+		if (ret == 0) {
+			dev_info(&ihid->client->dev,
+				 "re-arm wake succeeded on attempt %d/%d\n",
+				 tries + 1, I2C_HID_REARM_WAKE_MAX_TRIES);
+			return;
+		}
+
+		dev_info(&ihid->client->dev,
+			 "re-arm wake attempt %d/%d failed: %d\n",
+			 tries + 1, I2C_HID_REARM_WAKE_MAX_TRIES, ret);
+		msleep(I2C_HID_REARM_WAKE_RETRY_MS);
+	}
+
+	dev_warn(&ihid->client->dev,
+		 "re-arm wake failed after %d attempts: %d (key-scan may still be unarmed)\n",
+		 I2C_HID_REARM_WAKE_MAX_TRIES, ret);
+}
+
 static int i2c_hid_core_register_hid(struct i2c_hid *ihid)
 {
 	struct i2c_client *client = ihid->client;
@@ -1081,6 +1150,9 @@ static int i2c_hid_core_register_hid(struct i2c_hid *ihid)
 		disable_irq(client->irq);
 		return ret;
 	}
+
+	if (hid->vendor == USB_VENDOR_ID_ITE && hid->product == 0x8987)
+		schedule_delayed_work(&ihid->rearm_after_probe_work, 0);
 
 	return 0;
 }
@@ -1237,6 +1309,8 @@ int i2c_hid_core_probe(struct i2c_client *client, struct i2chid_ops *ops,
 	mutex_init(&ihid->cmd_lock);
 	mutex_init(&ihid->reset_lock);
 	INIT_WORK(&ihid->panel_follower_prepare_work, ihid_core_panel_prepare_work);
+	INIT_DELAYED_WORK(&ihid->rearm_after_probe_work,
+			  i2c_hid_rearm_after_probe_work_fn);
 
 	/* we need to allocate the command buffer without knowing the maximum
 	 * size of the reports. Let's use HID_MIN_BUFFER_SIZE, then we do the
@@ -1307,6 +1381,8 @@ void i2c_hid_core_remove(struct i2c_client *client)
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
 	struct hid_device *hid;
 
+	cancel_delayed_work_sync(&ihid->rearm_after_probe_work);
+
 	/*
 	 * If we're a follower, the act of unfollowing will cause us to be
 	 * powered down. Otherwise we need to manually do it.
@@ -1329,6 +1405,8 @@ EXPORT_SYMBOL_GPL(i2c_hid_core_remove);
 void i2c_hid_core_shutdown(struct i2c_client *client)
 {
 	struct i2c_hid *ihid = i2c_get_clientdata(client);
+
+	cancel_delayed_work_sync(&ihid->rearm_after_probe_work);
 
 	i2c_hid_set_power(ihid, I2C_HID_PWR_SLEEP);
 	free_irq(client->irq, ihid);
