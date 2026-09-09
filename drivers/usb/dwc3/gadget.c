@@ -937,6 +937,10 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep, unsigned int action)
 		dep->trb_dequeue = 0;
 		dep->trb_enqueue = 0;
 
+		if (usb_endpoint_xfer_isoc(desc) && (desc->bInterval == 1)) {
+			dwc->active_highbw_isoc = true;
+		}
+
 		if (usb_endpoint_xfer_control(desc))
 			goto out;
 
@@ -2658,6 +2662,8 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on)
 		reg &= ~DWC3_DCTL_RUN_STOP;
 
 		dwc->pullups_connected = false;
+		dwc->active_highbw_isoc = false;
+		dwc->ignore_statusirq = false;
 	}
 
 	dwc3_gadget_dctl_write_safe(dwc, reg);
@@ -4113,6 +4119,8 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 			dwc3_gadget_disconnect_interrupt(dwc);
 	}
 
+	dwc->active_highbw_isoc = false;
+	dwc->ignore_statusirq = false;
 	dwc3_reset_gadget(dwc);
 
 	/*
