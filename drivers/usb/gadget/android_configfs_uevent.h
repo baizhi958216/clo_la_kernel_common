@@ -111,6 +111,9 @@ void android_set_configured(struct android_uevent_opts *opts);
  */
 void android_set_unconfigured(struct android_uevent_opts *opts);
 
+struct device *android_create_function_device(const char *name);
+void android_destroy_function_device(struct device *dev);
+
 #else
 
 static inline int android_class_create(void)

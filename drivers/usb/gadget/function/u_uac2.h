@@ -33,6 +33,7 @@
 #define UAC2_DEF_RES_DB		(1*256)		/* 1 dB */
 
 #define UAC2_DEF_REQ_NUM 2
+#define UAC2_DEF_FB_MAX 5
 #define UAC2_DEF_INT_REQ_NUM	10
 
 #define UAC2_DEF_P_TERM_TYPE 0x301
@@ -88,6 +89,13 @@ struct f_uac2_opts {
 
 	struct mutex			lock;
 	int				refcnt;
+	u8				c_status;
+	u8				p_status;
+
+#ifdef CONFIG_ANDROID_USB_CONFIGFS_UEVENT
+        struct device               	*device;
+	struct work_struct              work;
+#endif
 };
 
 #endif

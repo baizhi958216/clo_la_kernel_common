@@ -271,3 +271,41 @@ void android_set_unconfigured(struct android_uevent_opts *opts)
 {
 	__android_set_configured(opts, false);
 }
+
+struct device *android_create_function_device(const char *name)
+{
+	unsigned long flags;
+	struct device *parent;
+	struct device *dev;
+
+	spin_lock_irqsave(&opts_lock, flags);
+
+	if (!android_opts || !android_opts->dev) {
+		spin_unlock_irqrestore(&opts_lock, flags);
+		pr_err("%s: no android0 parent device, return -ENODEV\n",
+			   __func__);
+		return ERR_PTR(-ENODEV);
+	}
+
+	parent = android_opts->dev;
+
+	spin_unlock_irqrestore(&opts_lock, flags);
+
+	dev = device_create(parent->class, parent, MKDEV(0, 0),
+			    NULL, "%s", name);
+	if (IS_ERR(dev)) {
+		pr_err("%s: device_create failed ret=%ld\n",
+		       __func__, PTR_ERR(dev));
+		return dev;
+	}
+
+	return dev;
+}
+
+void android_destroy_function_device(struct device *dev)
+{
+	if (!dev)
+		return;
+
+	device_destroy(dev->class, dev->devt);
+}
